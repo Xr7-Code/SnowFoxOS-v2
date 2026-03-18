@@ -1,15 +1,13 @@
 #!/bin/bash
 # ============================================================
 #  SnowFoxOS v2.0 — Installer
-#  Basis: Debian 12 (Bookworm) minimal + SSH + standard utils
-#  Autor: Xr7-Code
+#  Basis: Debian 12 (Bookworm) minimal
+#  Desktop: Sway + Waybar + Wofi + Dunst + Swaylock
+#  Ausführen: sudo ./install.sh
 # ============================================================
 
-set -e  # Bei Fehler sofort abbrechen
+set -e
 
-# ------------------------------------------------------------
-# Farben & Hilfsfunktionen
-# ------------------------------------------------------------
 PURPLE='\033[0;35m'
 ORANGE='\033[0;33m'
 GREEN='\033[0;32m'
@@ -22,588 +20,292 @@ info()    { echo -e "${PURPLE}${BOLD}[SnowFox]${RESET} $1"; }
 success() { echo -e "${GREEN}${BOLD}[  OK  ]${RESET} $1"; }
 warn()    { echo -e "${ORANGE}${BOLD}[ WARN ]${RESET} $1"; }
 error()   { echo -e "${RED}${BOLD}[FEHLER]${RESET} $1"; exit 1; }
-step()    { echo -e "\n${PURPLE}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"; \
-            echo -e "${PURPLE}${BOLD}  $1${RESET}"; \
+step()    { echo -e "\n${PURPLE}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}";
+            echo -e "${PURPLE}${BOLD}  $1${RESET}";
             echo -e "${PURPLE}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n"; }
 
-# ------------------------------------------------------------
 # Root-Check
-# ------------------------------------------------------------
 if [[ $EUID -ne 0 ]]; then
-    error "Dieses Script muss als root ausgeführt werden: sudo ./install.sh"
+    error "sudo ./install.sh"
 fi
 
-# ------------------------------------------------------------
-# Ziel-User ermitteln (der User der sudo aufgerufen hat)
-# ------------------------------------------------------------
+# Ziel-User ermitteln
 TARGET_USER="${SUDO_USER:-$(logname 2>/dev/null || echo '')}"
 if [[ -z "$TARGET_USER" || "$TARGET_USER" == "root" ]]; then
-    echo -e "${ORANGE}Für welchen Benutzer soll SnowFoxOS eingerichtet werden?${RESET}"
     read -rp "Benutzername: " TARGET_USER
 fi
 TARGET_HOME="/home/$TARGET_USER"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [[ ! -d "$TARGET_HOME" ]]; then
-    error "Home-Verzeichnis $TARGET_HOME nicht gefunden. Benutzer '$TARGET_USER' existiert nicht?"
-fi
+[[ ! -d "$TARGET_HOME" ]] && error "Home $TARGET_HOME nicht gefunden"
 
-info "Installiere SnowFoxOS v2.0 für Benutzer: ${BOLD}$TARGET_USER${RESET}"
-sleep 2
+info "Installiere für: ${BOLD}$TARGET_USER${RESET}"
+sleep 1
 
 # ============================================================
-# SCHRITT 1 — System aktualisieren & Grundpakete
+# SCHRITT 1 — System aktualisieren
 # ============================================================
-step "1/8 — System aktualisieren"
+step "1/7 — System aktualisieren"
 
 apt-get update -qq
 apt-get upgrade -y
 apt-get install -y \
-    curl wget git unzip zip \
+    curl wget git unzip \
     build-essential \
-    software-properties-common \
-    apt-transport-https \
     ca-certificates \
-    gnupg \
-    lsb-release \
-    pciutils \
-    usbutils \
-    htop \
-    neofetch \
-    bash-completion
+    pciutils usbutils \
+    htop neofetch \
+    bash-completion \
+    xdg-utils \
+    xdg-user-dirs
 
 success "System aktualisiert"
 
 # ============================================================
 # SCHRITT 2 — GPU-Erkennung & Treiber
 # ============================================================
-step "2/8 — GPU-Erkennung & Treiber"
+step "2/7 — GPU-Erkennung & Treiber"
 
 GPU_INFO=$(lspci | grep -iE 'vga|3d|display')
 HAS_NVIDIA=false
 HAS_AMD=false
 IS_HYBRID=false
 
-if echo "$GPU_INFO" | grep -qi "nvidia"; then
-    HAS_NVIDIA=true
-    info "Nvidia GPU gefunden"
-fi
-if echo "$GPU_INFO" | grep -qi "amd\|radeon\|advanced micro"; then
-    HAS_AMD=true
-    info "AMD GPU gefunden"
-fi
-if $HAS_NVIDIA && $HAS_AMD; then
-    IS_HYBRID=true
-    warn "Hybrid-GPU erkannt (AMD + Nvidia) — envycontrol wird installiert"
-fi
+echo "$GPU_INFO" | grep -qi "nvidia"  && HAS_NVIDIA=true && info "Nvidia GPU gefunden"
+echo "$GPU_INFO" | grep -qi "amd\|radeon\|advanced micro" && HAS_AMD=true && info "AMD GPU gefunden"
+$HAS_NVIDIA && $HAS_AMD && IS_HYBRID=true && warn "Hybrid-GPU (AMD + Nvidia) — envycontrol wird installiert"
 
-# AMD — open-source Treiber (meist schon im Kernel, nur firmware)
+# AMD
 if $HAS_AMD; then
     apt-get install -y firmware-amd-graphics libgl1-mesa-dri mesa-vulkan-drivers
     success "AMD Treiber installiert"
 fi
 
-# Nvidia — proprietärer Treiber
+# Nvidia
 if $HAS_NVIDIA; then
-    # non-free Repo aktivieren falls nötig
-    if ! grep -q "non-free" /etc/apt/sources.list; then
+    grep -q "non-free" /etc/apt/sources.list || \
         sed -i 's/main$/main contrib non-free non-free-firmware/' /etc/apt/sources.list
-        apt-get update -qq
-    fi
+    apt-get update -qq
     apt-get install -y nvidia-driver firmware-misc-nonfree
+    # Nvidia + Wayland
+    apt-get install -y libgbm1 libnvidia-egl-wayland1 2>/dev/null || true
     success "Nvidia Treiber installiert"
 fi
 
-# Hybrid: envycontrol für einfaches Umschalten AMD/Nvidia/Hybrid
+# Hybrid
 if $IS_HYBRID; then
     apt-get install -y python3 python3-pip
-    pip3 install envycontrol --break-system-packages 2>/dev/null || \
-        pip3 install envycontrol
-    success "envycontrol installiert (Befehl: sudo envycontrol -s hybrid|nvidia|integrated)"
+    pip3 install envycontrol --break-system-packages 2>/dev/null || pip3 install envycontrol
+    success "envycontrol installiert (sudo envycontrol -s hybrid|nvidia|integrated)"
 fi
 
-# Kein dedizierter GPU? Intel-Fallback
+# Fallback Intel
 if ! $HAS_NVIDIA && ! $HAS_AMD; then
-    apt-get install -y libgl1-mesa-dri mesa-vulkan-drivers intel-microcode 2>/dev/null || true
-    info "Intel/andere GPU — Mesa Fallback installiert"
+    apt-get install -y libgl1-mesa-dri mesa-vulkan-drivers 2>/dev/null || true
 fi
 
 # ============================================================
-# SCHRITT 3 — XFCE4 Desktop + LightDM
+# SCHRITT 3 — Sway & Wayland Desktop
 # ============================================================
-step "3/8 — XFCE4 Desktop & Display Manager"
+step "3/7 — Sway + Waybar + Wofi + Dunst + Swaylock"
 
-# Kern-Desktop — nur was wirklich gebraucht wird, kein Bloat
 apt-get install -y \
-    xfce4 \
-    xfce4-terminal \
-    xfce4-taskmanager \
-    xfce4-screenshooter \
-    xfce4-notifyd \
-    xfce4-pulseaudio-plugin \
-    xfce4-battery-plugin \
-    xfce4-whiskermenu-plugin \
-    thunar \
-    thunar-archive-plugin \
-    thunar-volman \
-    gvfs \
-    gvfs-backends
-
-# Display Manager — leicht, schnell
-apt-get install -y lightdm lightdm-gtk-greeter lightdm-gtk-greeter-settings
-
-# Picom Compositor (Schatten, leichte Transparenz)
-apt-get install -y picom
-
-# Fonts
-apt-get install -y \
+    sway \
+    swaybg \
+    swayidle \
+    swaylock \
+    waybar \
+    wofi \
+    dunst \
+    libnotify-bin \
+    xwayland \
+    wl-clipboard \
+    grim \
+    slurp \
+    brightnessctl \
+    playerctl \
+    pavucontrol \
+    pulseaudio \
+    network-manager \
+    network-manager-gnome \
+    blueman \
+    bluez \
     fonts-inter \
     fonts-noto \
-    fonts-noto-color-emoji
+    fonts-noto-color-emoji \
+    papirus-icon-theme
 
-success "XFCE4 + LightDM installiert"
+success "Sway Desktop installiert"
 
-# LightDM als Standard-Display-Manager setzen
+# Display Manager — LightDM startet Sway
+apt-get install -y lightdm
 systemctl enable lightdm
 echo "/usr/sbin/lightdm" > /etc/X11/default-display-manager
 
-# ============================================================
-# SCHRITT 4 — Audio, Netzwerk, Bluetooth
-# ============================================================
-step "4/8 — Audio, Netzwerk & Systemdienste"
-
-apt-get install -y \
-    pulseaudio \
-    pavucontrol \
-    network-manager \
-    network-manager-gnome \
-    nm-tray \
-    rfkill
-
-# Bluetooth — nur installieren wenn Hardware vorhanden
-if rfkill list bluetooth 2>/dev/null | grep -q "Bluetooth"; then
-    apt-get install -y blueman bluez
-    success "Bluetooth-Support installiert"
-else
-    info "Kein Bluetooth gefunden — wird übersprungen"
+# Sway Session für LightDM registrieren
+if [[ ! -f /usr/share/wayland-sessions/sway.desktop ]]; then
+    mkdir -p /usr/share/wayland-sessions
+    cat > /usr/share/wayland-sessions/sway.desktop << 'EOF'
+[Desktop Entry]
+Name=Sway
+Comment=An i3-compatible Wayland compositor
+Exec=sway
+Type=Application
+EOF
 fi
 
-systemctl enable NetworkManager
-
-success "Audio & Netzwerk fertig"
+success "LightDM + Sway Session registriert"
 
 # ============================================================
-# SCHRITT 5 — zram (RAM-Optimierung)
+# SCHRITT 4 — Terminal & Apps
 # ============================================================
-step "5/8 — zram RAM-Optimierung"
-
-apt-get install -y zram-tools
-
-# zram konfigurieren: 50% des RAM als komprimierten Swap
-cat > /etc/default/zramswap << 'EOF'
-# SnowFoxOS zram Konfiguration
-ALGO=lz4        # schnellster Algorithmus
-PERCENT=50      # 50% des physischen RAMs
-PRIORITY=100    # höhere Priorität als normaler Swap
-EOF
-
-systemctl enable zramswap
-
-success "zram aktiviert (lz4, 50% RAM)"
-
-# ============================================================
-# SCHRITT 6 — Themes, Icons, Cursor
-# ============================================================
-step "6/8 — Themes, Icons & Cursor"
-
-THEMES_DIR="/usr/share/themes"
-ICONS_DIR="/usr/share/icons"
+step "4/7 — Terminal & Standard-Apps"
 
 apt-get install -y \
-    papirus-icon-theme \
-    bibata-cursor-theme 2>/dev/null || \
-    apt-get install -y papirus-icon-theme
-
-# Orchis-Dark als GTK-Theme Basis herunterladen & anpassen
-if [[ ! -d "$THEMES_DIR/Orchis-Dark" ]]; then
-    info "Lade Orchis Theme herunter..."
-    git clone --depth=1 https://github.com/vinceliuice/Orchis-theme.git /tmp/orchis-theme
-    cd /tmp/orchis-theme
-    bash install.sh -t purple -c dark -s standard --tweaks black 2>/dev/null || \
-    bash install.sh --color dark 2>/dev/null || true
-    cd -
-    success "Orchis Dark Theme installiert"
-fi
-
-# SnowFoxOS GTK-Theme Farbanpassungen (Lila + Orange Akzente)
-SNOWFOX_THEME_DIR="$THEMES_DIR/SnowFoxOS"
-mkdir -p "$SNOWFOX_THEME_DIR/gtk-3.0"
-mkdir -p "$SNOWFOX_THEME_DIR/gtk-4.0"
-
-cat > "$SNOWFOX_THEME_DIR/gtk-3.0/gtk.css" << 'EOF'
-/* SnowFoxOS — GTK3 Anpassungen */
-@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");
-
-@define-color accent_color #9B59B6;
-@define-color accent_bg_color #9B59B6;
-@define-color accent_fg_color #ffffff;
-
-/* Akzentfarbe Lila */
-selection, *:selected {
-    background-color: #9B59B6;
-    color: #ffffff;
-}
-
-/* Orange Akzent für hover/aktiv */
-button:hover {
-    border-color: #E67E22;
-}
-
-/* Dunkler Hintergrund */
-window, .background {
-    background-color: #0f0f0f;
-    color: #e8e8e8;
-}
-
-headerbar {
-    background-color: #1a1a1a;
-    border-bottom: 1px solid #2a2a2a;
-}
-EOF
-
-cp "$SNOWFOX_THEME_DIR/gtk-3.0/gtk.css" "$SNOWFOX_THEME_DIR/gtk-4.0/gtk.css"
-
-cat > "$SNOWFOX_THEME_DIR/index.theme" << 'EOF'
-[Desktop Entry]
-Type=X-GNOME-Metatheme
-Name=SnowFoxOS
-Comment=SnowFoxOS Dark Theme
-Encoding=UTF-8
-
-[X-GNOME-Metatheme]
-GtkTheme=SnowFoxOS
-MetacityTheme=SnowFoxOS
-IconTheme=Papirus-Dark
-CursorTheme=Bibata-Modern-Classic
-ButtonLayout=close,minimize,maximize:
-EOF
-
-success "Themes & Icons bereit"
-
-# ============================================================
-# SCHRITT 7 — XFCE Konfiguration für den Benutzer
-# ============================================================
-step "7/8 — XFCE Standardkonfiguration"
-
-CONFIG_DIR="$TARGET_HOME/.config"
-mkdir -p "$CONFIG_DIR/xfce4/xfconf/xfce-perchannel-xml"
-
-# GTK Theme & Fonts setzen
-cat > "$CONFIG_DIR/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<channel name="xsettings" version="1.0">
-  <property name="Net" type="empty">
-    <property name="ThemeName" type="string" value="SnowFoxOS"/>
-    <property name="IconThemeName" type="string" value="Papirus-Dark"/>
-    <property name="CursorThemeName" type="string" value="Bibata-Modern-Classic"/>
-    <property name="CursorThemeSize" type="int" value="24"/>
-    <property name="EnableEventSounds" type="bool" value="false"/>
-    <property name="EnableInputFeedbackSounds" type="bool" value="false"/>
-  </property>
-  <property name="Gtk" type="empty">
-    <property name="FontName" type="string" value="Inter 10"/>
-    <property name="MonospaceFontName" type="string" value="Noto Mono 10"/>
-    <property name="CursorThemeName" type="string" value="Bibata-Modern-Classic"/>
-    <property name="DecorationLayout" type="string" value="close,minimize,maximize:"/>
-  </property>
-  <property name="Xft" type="empty">
-    <property name="Antialias" type="int" value="1"/>
-    <property name="Hinting" type="int" value="1"/>
-    <property name="HintStyle" type="string" value="hintslight"/>
-    <property name="RGBA" type="string" value="rgb"/>
-    <property name="DPI" type="int" value="96"/>
-  </property>
-</channel>
-EOF
-
-# Window Manager (xfwm4) — dunkel, minimalistisch
-cat > "$CONFIG_DIR/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<channel name="xfwm4" version="1.0">
-  <property name="general" type="empty">
-    <property name="theme" type="string" value="SnowFoxOS"/>
-    <property name="title_font" type="string" value="Inter Bold 10"/>
-    <property name="button_layout" type="string" value="CMH|"/>
-    <property name="frame_opacity" type="int" value="100"/>
-    <property name="inactive_opacity" type="int" value="95"/>
-    <property name="use_compositing" type="bool" value="true"/>
-    <property name="show_dock_shadow" type="bool" value="false"/>
-    <property name="show_frame_shadow" type="bool" value="true"/>
-    <property name="snap_to_border" type="bool" value="true"/>
-    <property name="snap_to_windows" type="bool" value="false"/>
-    <property name="workspace_count" type="int" value="4"/>
-    <property name="mousewheel_rollup" type="bool" value="false"/>
-    <property name="double_click_action" type="string" value="maximize"/>
-  </property>
-</channel>
-EOF
-
-# XFCE4-Panel — oben, dunkel, schlank
-cat > "$CONFIG_DIR/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<channel name="xfce4-panel" version="1.0">
-  <property name="configver" type="int" value="2"/>
-  <property name="panels" type="array">
-    <value type="int" value="1"/>
-  </property>
-  <property name="panel-1" type="empty">
-    <property name="position" type="string" value="p=6;x=0;y=0"/>
-    <property name="length" type="uint" value="100"/>
-    <property name="position-locked" type="bool" value="false"/>
-    <property name="size" type="uint" value="32"/>
-    <property name="background-style" type="uint" value="1"/>
-    <property name="background-color" type="string" value="#1a1a1aee"/>
-    <property name="enter-opacity" type="uint" value="100"/>
-    <property name="leave-opacity" type="uint" value="95"/>
-    <property name="mode" type="uint" value="0"/>
-    <property name="span-monitors" type="bool" value="false"/>
-    <property name="plugin-ids" type="array">
-      <value type="int" value="1"/>
-      <value type="int" value="2"/>
-      <value type="int" value="3"/>
-      <value type="int" value="4"/>
-      <value type="int" value="5"/>
-      <value type="int" value="6"/>
-      <value type="int" value="7"/>
-    </property>
-  </property>
-  <!-- Plugin-Definitionen -->
-  <property name="plugins" type="empty">
-    <!-- Whisker Menü -->
-    <property name="plugin-1" type="string" value="whiskermenu"/>
-    <!-- Separator -->
-    <property name="plugin-2" type="string" value="separator">
-      <property name="expand" type="bool" value="false"/>
-      <property name="style" type="uint" value="0"/>
-    </property>
-    <!-- Offene Fenster / Taskbar -->
-    <property name="plugin-3" type="string" value="tasklist">
-      <property name="show-labels" type="bool" value="true"/>
-      <property name="grouping" type="uint" value="1"/>
-    </property>
-    <!-- Spacer (füllt Mitte) -->
-    <property name="plugin-4" type="string" value="separator">
-      <property name="expand" type="bool" value="true"/>
-      <property name="style" type="uint" value="0"/>
-    </property>
-    <!-- Systemtray -->
-    <property name="plugin-5" type="string" value="systray"/>
-    <!-- PulseAudio -->
-    <property name="plugin-6" type="string" value="pulseaudio"/>
-    <!-- Uhr -->
-    <property name="plugin-7" type="string" value="clock">
-      <property name="digital-format" type="string" value="%H:%M  %d.%m.%Y"/>
-    </property>
-  </property>
-</channel>
-EOF
-
-# Picom Compositor — leicht, keine schweren Effekte
-mkdir -p "$CONFIG_DIR/picom"
-cat > "$CONFIG_DIR/picom/picom.conf" << 'EOF'
-# SnowFoxOS — Picom Konfiguration (minimal & schnell)
-
-# Rendering
-backend = "glx";
-glx-no-stencil = true;
-glx-copy-from-front = false;
-use-damage = true;
-
-# Schatten — nur für Fenster, nicht Panel
-shadow = true;
-shadow-radius = 12;
-shadow-opacity = 0.4;
-shadow-offset-x = -8;
-shadow-offset-y = -8;
-shadow-exclude = [
-    "class_g = 'xfce4-panel'",
-    "class_g = 'xfce4-notifyd'",
-    "_GTK_FRAME_EXTENTS@:c"
-];
-
-# Transparenz — inaktive Fenster minimal transparent
-inactive-opacity = 0.96;
-active-opacity = 1.0;
-frame-opacity = 1.0;
-inactive-opacity-override = false;
-
-# Animationen aus (spart Ressourcen)
-fading = false;
-
-# VSync
-vsync = true;
-
-# Keine unnötigen Logs
-log-level = "warn";
-EOF
-
-# Autostart — nur das Nötigste
-mkdir -p "$CONFIG_DIR/autostart"
-
-# Picom starten
-cat > "$CONFIG_DIR/autostart/picom.desktop" << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=Picom
-Exec=picom --config /home/USER/.config/picom/picom.conf -b
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-EOF
-# Platzhalter ersetzen
-sed -i "s|/home/USER/|$TARGET_HOME/|g" "$CONFIG_DIR/autostart/picom.desktop"
-
-# Network Manager Tray
-cat > "$CONFIG_DIR/autostart/nm-tray.desktop" << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=Network Manager Tray
-Exec=nm-tray
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-EOF
-
-# Autostart-Bloat deaktivieren
-for bloat in \
-    "xfce4-power-manager" \
-    "blueman-applet" \
-    "print-applet" \
-    "geoclue-demo-agent"; do
-    BLOAT_FILE="$CONFIG_DIR/autostart/${bloat}.desktop"
-    if [[ -f "/etc/xdg/autostart/${bloat}.desktop" ]]; then
-        cp "/etc/xdg/autostart/${bloat}.desktop" "$BLOAT_FILE" 2>/dev/null || true
-        echo "Hidden=true" >> "$BLOAT_FILE"
-    fi
-done
-
-success "XFCE Konfiguration geschrieben"
-
-# ============================================================
-# SCHRITT 8 — Standard-Apps & Wine
-# ============================================================
-step "8/8 — Standard-Apps & Wine"
-
-# Browser
-apt-get install -y firefox-esr
-
-# Leichte Zusatztools
-apt-get install -y \
+    kitty \
+    firefox-esr \
+    thunar \
+    thunar-archive-plugin \
+    thunar-volman \
+    gvfs gvfs-backends \
     mousepad \
     ristretto \
-    file-roller \
-    xarchiver \
-    gparted \
-    baobab
+    file-roller
 
-# Wine — Windows .exe Kompatibilität
-info "Installiere Wine..."
+success "Terminal (Kitty) & Apps installiert"
+
+# ============================================================
+# SCHRITT 5 — Wine
+# ============================================================
+step "5/7 — Wine (.exe Kompatibilität)"
+
 dpkg --add-architecture i386
 apt-get update -qq
 apt-get install -y wine wine32 wine64 2>/dev/null || \
     apt-get install -y wine 2>/dev/null || \
-    warn "Wine konnte nicht installiert werden — manuell nachholen mit: apt install wine"
+    warn "Wine nicht installierbar — manuell: apt install wine"
 
-# .exe → Wine Rechtsklick-Integration für Thunar
-mkdir -p "$TARGET_HOME/.config/Thunar"
-cat > "/usr/share/applications/wine-run.desktop" << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=Mit Wine öffnen
-Exec=wine %f
-MimeType=application/x-ms-dos-executable;application/x-msi;application/x-msdos-program;
-NoDisplay=false
-StartupNotify=true
-Icon=wine
+success "Wine installiert"
+
+# ============================================================
+# SCHRITT 6 — zram
+# ============================================================
+step "6/7 — zram RAM-Optimierung"
+
+apt-get install -y zram-tools
+
+cat > /etc/default/zramswap << 'EOF'
+ALGO=lz4
+PERCENT=50
+PRIORITY=100
 EOF
 
-update-desktop-database /usr/share/applications/ 2>/dev/null || true
-
-success "Standard-Apps & Wine installiert"
+systemctl enable zramswap
+success "zram aktiviert (lz4, 50%)"
 
 # ============================================================
-# SCHRITT 9 — Leicht-Modus Script
+# SCHRITT 7 — Konfigurationsdateien kopieren
 # ============================================================
+step "7/7 — Konfiguration installieren"
 
-info "Erstelle snowfox-lite (Leicht-Modus für alte Hardware)..."
+CONFIG_DIR="$TARGET_HOME/.config"
+mkdir -p \
+    "$CONFIG_DIR/sway" \
+    "$CONFIG_DIR/waybar" \
+    "$CONFIG_DIR/wofi" \
+    "$CONFIG_DIR/dunst" \
+    "$CONFIG_DIR/swaylock" \
+    "$CONFIG_DIR/kitty"
 
-cat > /usr/local/bin/snowfox-lite << 'EOF'
-#!/bin/bash
-# SnowFoxOS — Leicht-Modus für alte Hardware
-# Verwendung: snowfox-lite [on|off|status]
+# Sway Config
+cp "$SCRIPT_DIR/configs/sway/config"     "$CONFIG_DIR/sway/config"
 
-LITE_FLAG="/tmp/.snowfox-lite-active"
+# Waybar
+cp "$SCRIPT_DIR/configs/waybar/config"   "$CONFIG_DIR/waybar/config"
+cp "$SCRIPT_DIR/configs/waybar/style.css" "$CONFIG_DIR/waybar/style.css"
 
-case "$1" in
-    on)
-        echo "Aktiviere Leicht-Modus..."
-        pkill picom 2>/dev/null || true
-        xfconf-query -c xfwm4 -p /general/use_compositing -s false 2>/dev/null || true
-        xfconf-query -c xfwm4 -p /general/frame_opacity -s 100 2>/dev/null || true
-        xfconf-query -c xfwm4 -p /general/inactive_opacity -s 100 2>/dev/null || true
-        # Hintergrundbild auf einfache Farbe setzen
-        xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitorVGA-1/workspace0/last-image -s "" 2>/dev/null || true
-        touch "$LITE_FLAG"
-        echo "Leicht-Modus aktiv. RAM-Verbrauch reduziert."
-        ;;
-    off)
-        echo "Deaktiviere Leicht-Modus..."
-        picom --config ~/.config/picom/picom.conf -b 2>/dev/null || true
-        xfconf-query -c xfwm4 -p /general/use_compositing -s true 2>/dev/null || true
-        rm -f "$LITE_FLAG"
-        echo "Normaler Modus aktiv."
-        ;;
-    status)
-        if [[ -f "$LITE_FLAG" ]]; then
-            echo "Leicht-Modus: AKTIV"
-        else
-            echo "Leicht-Modus: INAKTIV (normaler Modus)"
-        fi
-        ;;
-    *)
-        echo "Verwendung: snowfox-lite [on|off|status]"
-        ;;
-esac
+# Wofi
+cp "$SCRIPT_DIR/configs/wofi/style.css"  "$CONFIG_DIR/wofi/style.css"
+cp "$SCRIPT_DIR/configs/wofi/config"     "$CONFIG_DIR/wofi/config"
+
+# Dunst
+cp "$SCRIPT_DIR/configs/dunst/dunstrc"   "$CONFIG_DIR/dunst/dunstrc"
+
+# Swaylock
+cp "$SCRIPT_DIR/configs/swaylock/config" "$CONFIG_DIR/swaylock/config"
+
+# Kitty Terminal
+cat > "$CONFIG_DIR/kitty/kitty.conf" << 'EOF'
+# SnowFoxOS — Kitty Terminal
+font_family      Noto Mono
+font_size        11.0
+cursor           #9B59B6
+cursor_text_color #0f0f0f
+
+background       #0f0f0f
+foreground       #e8e8e8
+
+# Farben
+color0  #1a1a1a
+color1  #e05555
+color2  #5faf5f
+color3  #E67E22
+color4  #5f87af
+color5  #9B59B6
+color6  #5fafaf
+color7  #bcbcbc
+color8  #3a3a3a
+color9  #ff6e6e
+color10 #87d787
+color11 #ffd787
+color12 #87afd7
+color13 #c397d8
+color14 #87d7d7
+color15 #e8e8e8
+
+window_padding_width 8
+hide_window_decorations yes
+confirm_os_window_close 0
 EOF
 
-chmod +x /usr/local/bin/snowfox-lite
-success "snowfox-lite verfügbar (Befehl: snowfox-lite on/off/status)"
+# Wallpaper kopieren falls vorhanden
+if ls "$SCRIPT_DIR/wallpapers"/*.{jpg,png,jpeg} &>/dev/null 2>&1; then
+    mkdir -p "$TARGET_HOME/Pictures/wallpapers"
+    cp "$SCRIPT_DIR/wallpapers"/* "$TARGET_HOME/Pictures/wallpapers/" 2>/dev/null || true
+    success "Wallpapers kopiert"
+fi
 
-# ============================================================
-# Berechtigungen korrigieren
-# ============================================================
+# Berechtigungen setzen
+chown -R "$TARGET_USER:$TARGET_USER" "$CONFIG_DIR"
+[[ -d "$TARGET_HOME/Pictures" ]] && chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/Pictures"
 
-chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config"
-
-# ============================================================
 # Unnötige Dienste deaktivieren
-# ============================================================
-
-info "Deaktiviere unnötige Dienste..."
-
-for service in \
-    "avahi-daemon" \
-    "cups" \
-    "cups-browsed" \
-    "ModemManager" \
-    "wpa_supplicant"; do
-    systemctl disable "$service" 2>/dev/null && \
-        info "  Deaktiviert: $service" || true
+info "Unnötige Dienste deaktivieren..."
+for svc in avahi-daemon cups cups-browsed ModemManager; do
+    systemctl disable "$svc" 2>/dev/null && info "  Deaktiviert: $svc" || true
 done
 
-# ============================================================
-# Fertig!
-# ============================================================
+# snowfox-lite Script
+cat > /usr/local/bin/snowfox-lite << 'EOF'
+#!/bin/bash
+# SnowFoxOS Leicht-Modus
+case "$1" in
+    on)
+        echo "export WLR_NO_HARDWARE_CURSORS=1" >> ~/.profile
+        echo "Leicht-Modus aktiv — beim nächsten Login wirksam"
+        ;;
+    off)
+        sed -i '/WLR_NO_HARDWARE_CURSORS/d' ~/.profile
+        echo "Leicht-Modus deaktiviert"
+        ;;
+    *) echo "Verwendung: snowfox-lite [on|off]" ;;
+esac
+EOF
+chmod +x /usr/local/bin/snowfox-lite
 
+# ============================================================
+# Fertig
+# ============================================================
 echo ""
 echo -e "${PURPLE}${BOLD}"
 echo "  ███████╗███╗  ██╗ ██████╗ ██╗    ██╗███████╗ ██████╗ ██╗  ██╗"
@@ -615,11 +317,15 @@ echo "  ╚══════╝╚═╝  ╚══╝ ╚═════╝  �
 echo -e "${RESET}"
 echo -e "${GREEN}${BOLD}  SnowFoxOS v2.0 erfolgreich installiert!${RESET}"
 echo ""
-echo -e "${GRAY}  Benutzer:     ${BOLD}$TARGET_USER${RESET}"
-echo -e "${GRAY}  GPU-Modus:    ${BOLD}$([ "$IS_HYBRID" = true ] && echo 'Hybrid (AMD + Nvidia)' || ([ "$HAS_NVIDIA" = true ] && echo 'Nvidia' || ([ "$HAS_AMD" = true ] && echo 'AMD' || echo 'Intel/andere')))${RESET}"
-echo -e "${GRAY}  zram:         ${BOLD}aktiv (lz4, 50%)${RESET}"
-echo -e "${GRAY}  Panel:        ${BOLD}oben (frei verschiebbar)${RESET}"
-echo -e "${GRAY}  Leicht-Modus: ${BOLD}snowfox-lite on${RESET}"
+echo -e "${GRAY}  Benutzer:  ${BOLD}$TARGET_USER${RESET}"
+echo -e "${GRAY}  Desktop:   ${BOLD}Sway + Waybar${RESET}"
+echo -e "${GRAY}  GPU:       ${BOLD}$(
+    $IS_HYBRID && echo 'Hybrid (AMD + Nvidia)' || \
+    ($HAS_NVIDIA && echo 'Nvidia') || \
+    ($HAS_AMD && echo 'AMD') || \
+    echo 'Intel/andere'
+)${RESET}"
+echo -e "${GRAY}  zram:      ${BOLD}aktiv (lz4, 50%)${RESET}"
 echo ""
-echo -e "${ORANGE}${BOLD}  → Bitte neu starten: sudo reboot${RESET}"
+echo -e "${ORANGE}${BOLD}  → Neu starten: sudo reboot${RESET}"
 echo ""
