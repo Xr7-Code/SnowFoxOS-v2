@@ -137,24 +137,23 @@ apt-get install -y \
 
 success "Sway Desktop installiert"
 
-# Display Manager — LightDM startet Sway
-apt-get install -y lightdm
-systemctl enable lightdm
-echo "/usr/sbin/lightdm" > /etc/X11/default-display-manager
+# Display Manager — greetd (minimal, keine XFCE-Abhängigkeiten)
+apt-get install -y greetd greetd-tuigreet
 
-# Sway Session für LightDM registrieren
-if [[ ! -f /usr/share/wayland-sessions/sway.desktop ]]; then
-    mkdir -p /usr/share/wayland-sessions
-    cat > /usr/share/wayland-sessions/sway.desktop << 'EOF'
-[Desktop Entry]
-Name=Sway
-Comment=An i3-compatible Wayland compositor
-Exec=sway
-Type=Application
+# greetd konfigurieren: startet direkt Sway nach Login
+cat > /etc/greetd/config.toml << EOF
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --time --greeting 'SnowFoxOS' --cmd sway"
+user = "greeter"
 EOF
-fi
 
-success "LightDM + Sway Session registriert"
+systemctl enable greetd
+systemctl disable lightdm 2>/dev/null || true
+
+success "greetd installiert (minimaler Login-Manager)"
 
 # ============================================================
 # SCHRITT 4 — Terminal & Apps
