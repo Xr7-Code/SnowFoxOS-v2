@@ -1,0 +1,201 @@
+# ============================================================
+#  SnowFoxOS v2.0 — Sway Konfiguration
+# ============================================================
+
+# Modifier: Super-Taste (Windows-Taste)
+set $mod Mod4
+
+# Terminal
+set $term kitty
+
+# App-Launcher
+set $menu wofi --show drun --prompt "Suchen..."
+
+# ── Farben ──────────────────────────────────────────────────
+set $purple  #9B59B6
+set $orange  #E67E22
+set $bg      #0f0f0f
+set $bg2     #1a1a1a
+set $fg      #e8e8e8
+set $gray    #3a3a3a
+set $inactive #2a2a2a
+
+# ── Schrift ─────────────────────────────────────────────────
+font pango:Inter 10
+
+# ── Ausgabe / Monitor ───────────────────────────────────────
+# Hintergrund — Wallpaper falls vorhanden, sonst dunkel
+output * bg ~/Pictures/wallpapers/wallpaper.jpg fill 2>/dev/null || \
+output * bg #0f0f0f solid_color
+
+# ── Eingabe ─────────────────────────────────────────────────
+input type:keyboard {
+    xkb_layout de
+    xkb_options caps:escape
+    repeat_delay 300
+    repeat_rate 50
+}
+
+input type:touchpad {
+    tap enabled
+    natural_scroll enabled
+    dwt enabled
+    middle_emulation enabled
+}
+
+# ── Fenster-Dekoration ──────────────────────────────────────
+# client.focused          border    background  text    indicator  child_border
+client.focused            $purple   $bg2        $fg     $orange    $purple
+client.focused_inactive   $gray     $bg         $fg     $gray      $gray
+client.unfocused          $inactive $bg         $fg     $inactive  $inactive
+client.urgent             $orange   $bg2        $fg     $orange    $orange
+
+default_border pixel 2
+default_floating_border pixel 2
+titlebar_padding 8 4
+gaps inner 6
+gaps outer 4
+smart_gaps on
+smart_borders on
+
+# ── Waybar starten ──────────────────────────────────────────
+bar {
+    swaybar_command waybar
+}
+
+# ── Autostart ───────────────────────────────────────────────
+exec dunst
+exec nm-applet --indicator
+exec blueman-applet
+exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 2>/dev/null || \
+     /usr/lib/x86_64-linux-gnu/libexec/polkit-kde-authentication-agent-1 2>/dev/null || true
+
+# Swayidle — Bildschirmsperre nach 5 Minuten, Bildschirm aus nach 10
+exec swayidle -w \
+    timeout 300  'swaylock -f' \
+    timeout 600  'swaymsg "output * dpms off"' \
+    resume       'swaymsg "output * dpms on"' \
+    before-sleep 'swaylock -f'
+
+# ── Keyboard Shortcuts ──────────────────────────────────────
+
+# Terminal
+bindsym $mod+Return exec $term
+
+# App-Launcher
+bindsym $mod+Space exec $menu
+
+# Browser
+bindsym $mod+b exec firefox-esr
+
+# Dateimanager
+bindsym $mod+e exec thunar
+
+# Bildschirmsperre
+bindsym $mod+l exec swaylock -f
+
+# Screenshot — ganzer Bildschirm
+bindsym Print exec grim ~/Pictures/screenshot_$(date +%Y%m%d_%H%M%S).png && \
+    notify-send "Screenshot" "Gespeichert in ~/Pictures"
+
+# Screenshot — Auswahl
+bindsym $mod+Print exec grim -g "$(slurp)" ~/Pictures/screenshot_$(date +%Y%m%d_%H%M%S).png && \
+    notify-send "Screenshot" "Ausschnitt gespeichert"
+
+# Lautstärke
+bindsym XF86AudioRaiseVolume  exec pactl set-sink-volume @DEFAULT_SINK@ +5%
+bindsym XF86AudioLowerVolume  exec pactl set-sink-volume @DEFAULT_SINK@ -5%
+bindsym XF86AudioMute         exec pactl set-sink-mute @DEFAULT_SINK@ toggle
+
+# Helligkeit
+bindsym XF86MonBrightnessUp   exec brightnessctl set +5%
+bindsym XF86MonBrightnessDown exec brightnessctl set 5%-
+
+# Media
+bindsym XF86AudioPlay  exec playerctl play-pause
+bindsym XF86AudioNext  exec playerctl next
+bindsym XF86AudioPrev  exec playerctl previous
+
+# Fenster schließen
+bindsym $mod+q kill
+
+# Sway neu laden
+bindsym $mod+Shift+r reload
+
+# Abmelden
+bindsym $mod+Shift+e exec swaynag \
+    -t warning \
+    -m "SnowFoxOS — Was möchtest du tun?" \
+    -b "Abmelden" "swaymsg exit" \
+    -b "Neu starten" "systemctl reboot" \
+    -b "Ausschalten" "systemctl poweroff"
+
+# ── Fensterverwaltung ───────────────────────────────────────
+
+# Fokus bewegen
+bindsym $mod+Left  focus left
+bindsym $mod+Right focus right
+bindsym $mod+Up    focus up
+bindsym $mod+Down  focus down
+
+# Fenster verschieben
+bindsym $mod+Shift+Left  move left
+bindsym $mod+Shift+Right move right
+bindsym $mod+Shift+Up    move up
+bindsym $mod+Shift+Down  move down
+
+# Layout
+bindsym $mod+h split h
+bindsym $mod+v split v
+bindsym $mod+f fullscreen toggle
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+t layout toggle split
+
+# Floating
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+d focus mode_toggle
+floating_modifier $mod normal
+
+# ── Workspaces ──────────────────────────────────────────────
+set $ws1 "1"
+set $ws2 "2"
+set $ws3 "3"
+set $ws4 "4"
+set $ws5 "5"
+
+bindsym $mod+1 workspace $ws1
+bindsym $mod+2 workspace $ws2
+bindsym $mod+3 workspace $ws3
+bindsym $mod+4 workspace $ws4
+bindsym $mod+5 workspace $ws5
+
+bindsym $mod+Shift+1 move container to workspace $ws1
+bindsym $mod+Shift+2 move container to workspace $ws2
+bindsym $mod+Shift+3 move container to workspace $ws3
+bindsym $mod+Shift+4 move container to workspace $ws4
+bindsym $mod+Shift+5 move container to workspace $ws5
+
+# ── Floating Regeln ─────────────────────────────────────────
+for_window [app_id="pavucontrol"]    floating enable, resize set 600 400
+for_window [app_id="blueman-manager"] floating enable, resize set 600 500
+for_window [app_id="nm-connection-editor"] floating enable
+for_window [title="Einstellungen"]   floating enable
+for_window [window_role="dialog"]    floating enable
+for_window [window_role="pop-up"]    floating enable
+for_window [window_type="dialog"]    floating enable
+
+# ── Größe ändern ────────────────────────────────────────────
+mode "resize" {
+    bindsym Left  resize shrink width  20px
+    bindsym Right resize grow   width  20px
+    bindsym Up    resize shrink height 20px
+    bindsym Down  resize grow   height 20px
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+r mode "resize"
+
+# ── Nvidia Wayland Fix ──────────────────────────────────────
+# Wird automatisch gesetzt wenn Nvidia erkannt wird
+# (durch install.sh in /etc/environment)
