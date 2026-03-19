@@ -2,6 +2,13 @@
 #  SnowFoxOS v2.0 — Sway Konfiguration
 # ============================================================
 
+exec systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
+exec export XDG_CURRENT_DESKTOP=sway
+exec export XDG_SESSION_TYPE=wayland
+exec export MOZ_ENABLE_WAYLAND=1
+exec export QT_QPA_PLATFORM=wayland
+exec export GDK_BACKEND=wayland
+
 # Modifier: Super-Taste (Windows-Taste)
 set $mod Mod4
 
