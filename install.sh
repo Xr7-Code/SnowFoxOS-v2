@@ -363,9 +363,11 @@ EOF
 success "Wayland/Qt Umgebungsvariablen gesetzt (inkl. MegaSync-Fix)"
 
 # Wallpaper kopieren
-if ls "$SCRIPT_DIR/wallpapers"/*.{jpg,png,jpeg} &>/dev/null 2>&1; then
-    cp "$SCRIPT_DIR/wallpapers"/* "$TARGET_HOME/Pictures/wallpapers/" 2>/dev/null || true
+if [ -d "$SCRIPT_DIR/wallpapers" ] && [ "$(ls -A "$SCRIPT_DIR/wallpapers" 2>/dev/null)" ]; then
+    cp "$SCRIPT_DIR/wallpapers"/* "$TARGET_HOME/Pictures/wallpapers/"
     success "Wallpapers kopiert"
+else
+    warn "Kein Wallpaper gefunden — dunkle Hintergrundfarbe aktiv"
 fi
 
 # snowfox-lite Script
