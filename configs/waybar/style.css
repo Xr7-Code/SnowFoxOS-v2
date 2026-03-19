@@ -198,3 +198,23 @@ tooltip label {
     color: #e8e8e8;
     padding: 4px 8px;
 }
+
+/* ── CPU / RAM / Temperatur ──────────────────────────────── */
+#cpu,
+#memory,
+#temperature {
+    color: #b0b0b0;
+    padding: 0 8px;
+}
+
+#cpu:hover,
+#memory:hover {
+    color: #9B59B6;
+    background-color: rgba(155, 89, 182, 0.08);
+    border-radius: 4px;
+}
+
+#temperature.critical {
+    color: #e05555;
+    animation: blink 1s linear infinite;
+}
