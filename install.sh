@@ -129,13 +129,15 @@ apt-get install -y \
     playerctl \
     network-manager \
     network-manager-gnome \
-
-    blueman \
     bluez \
     fonts-inter \
     fonts-noto \
     fonts-noto-color-emoji \
     papirus-icon-theme
+
+# Blueman separat — braucht contrib repo
+apt-get install -y blueman 2>/dev/null || warn "Blueman nicht verfügbar — Bluetooth ohne GUI"
+
 
 success "Sway Desktop installiert"
 
