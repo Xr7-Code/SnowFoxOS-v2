@@ -123,13 +123,8 @@ bindsym $mod+q kill
 # Sway neu laden
 bindsym $mod+Shift+r reload
 
-# Abmelden
-bindsym $mod+Shift+e exec swaynag \
-    -t warning \
-    -m "SnowFoxOS — Was möchtest du tun?" \
-    -b "Abmelden" "swaymsg exit" \
-    -b "Neu starten" "systemctl reboot" \
-    -b "Ausschalten" "systemctl poweroff"
+# Power Menü
+bindsym $mod+Shift+e exec ~/.config/sway/powermenu.sh
 
 # ── Fensterverwaltung ───────────────────────────────────────
 
