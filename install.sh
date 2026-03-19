@@ -75,7 +75,7 @@ HAS_NVIDIA=false
 HAS_AMD=false
 IS_HYBRID=false
 
-echo "$GPU_INFO" | grep -qi "nvidia"  && HAS_NVIDIA=true && info "Nvidia GPU gefunden"
+echo "$GPU_INFO" | grep -qi "nvidia" && HAS_NVIDIA=true && info "Nvidia GPU gefunden"
 echo "$GPU_INFO" | grep -qi "amd\|radeon\|advanced micro" && HAS_AMD=true && info "AMD GPU gefunden"
 $HAS_NVIDIA && $HAS_AMD && IS_HYBRID=true && warn "Hybrid-GPU (AMD + Nvidia) — envycontrol wird installiert"
 
@@ -139,7 +139,7 @@ apt-get install -y \
 
 success "Sway Desktop installiert"
 
-# ── Sway startet automatisch nach Login in TTY1 ────────────
+# Sway startet automatisch nach Login in TTY1
 BASH_PROFILE="$TARGET_HOME/.bash_profile"
 if ! grep -q "exec sway" "$BASH_PROFILE" 2>/dev/null; then
     echo '' >> "$BASH_PROFILE"
@@ -147,8 +147,7 @@ if ! grep -q "exec sway" "$BASH_PROFILE" 2>/dev/null; then
     echo '[ "$(tty)" = "/dev/tty1" ] && exec sway' >> "$BASH_PROFILE"
 fi
 
-# Kein Autologin — Benutzer muss Passwort eingeben
-# Autologin-Config entfernen falls vorhanden
+# Kein Autologin — Benutzer gibt Passwort ein
 rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
 rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null || true
 
@@ -160,7 +159,7 @@ systemctl disable gdm3    2>/dev/null || true
 success "Sway Autostart eingerichtet (Login → Passwort → Sway startet)"
 
 # ============================================================
-# SCHRITT 4 — Audio (PipeWire statt PulseAudio)
+# SCHRITT 4 — Audio (PipeWire)
 # ============================================================
 step "4/8 — Audio (PipeWire)"
 
@@ -171,13 +170,13 @@ apt-get install -y \
     wireplumber \
     pavucontrol
 
-# PulseAudio entfernen falls installiert
+# PulseAudio entfernen falls vorhanden
 apt-get remove --purge -y pulseaudio pulseaudio-utils 2>/dev/null || true
 
 # PipeWire für den User aktivieren
 sudo -u "$TARGET_USER" systemctl --user enable pipewire pipewire-pulse wireplumber 2>/dev/null || true
 
-success "PipeWire installiert (leichter als PulseAudio)"
+success "PipeWire installiert"
 
 # ============================================================
 # SCHRITT 5 — Terminal & Apps
@@ -209,7 +208,6 @@ apt-get install -y wine wine32 wine64 2>/dev/null || \
     apt-get install -y wine 2>/dev/null || \
     warn "Wine nicht installierbar — manuell: apt install wine"
 
-# .exe Rechtsklick-Integration
 cat > /usr/share/applications/wine-open.desktop << 'EOF'
 [Desktop Entry]
 Type=Application
@@ -223,7 +221,7 @@ EOF
 success "Wine installiert"
 
 # ============================================================
-# SCHRITT 7 — zram & Boot-Optimierung
+# SCHRITT 7 — zram & Optimierung
 # ============================================================
 step "7/8 — zram & Optimierung"
 
@@ -244,7 +242,7 @@ for svc in avahi-daemon cups cups-browsed ModemManager e2scrub_reap; do
 done
 systemctl mask NetworkManager-wait-online.service 2>/dev/null || true
 
-# NetworkManager richtig konfigurieren (WLAN fix für rtw88 und andere Chips)
+# NetworkManager WLAN-Fix
 mkdir -p /etc/NetworkManager/conf.d
 cat > /etc/NetworkManager/conf.d/snowfox.conf << 'EOF'
 [device]
@@ -258,12 +256,13 @@ managed=true
 EOF
 
 systemctl enable NetworkManager
+
 success "zram + Optimierungen fertig"
 
 # ============================================================
-# SCHRITT 8 — Konfigurationsdateien kopieren
+# SCHRITT 8 — Konfigurationsdateien & Darkmode
 # ============================================================
-step "8/8 — Konfiguration installieren"
+step "8/8 — Konfiguration & Darkmode"
 
 CONFIG_DIR="$TARGET_HOME/.config"
 mkdir -p \
@@ -272,7 +271,10 @@ mkdir -p \
     "$CONFIG_DIR/wofi" \
     "$CONFIG_DIR/dunst" \
     "$CONFIG_DIR/swaylock" \
-    "$CONFIG_DIR/kitty"
+    "$CONFIG_DIR/kitty" \
+    "$CONFIG_DIR/gtk-3.0" \
+    "$CONFIG_DIR/gtk-4.0" \
+    "$TARGET_HOME/Pictures/wallpapers"
 
 # Sway
 cp "$SCRIPT_DIR/configs/sway/config"       "$CONFIG_DIR/sway/config"
@@ -325,18 +327,40 @@ hide_window_decorations yes
 confirm_os_window_close 0
 EOF
 
-# Wayland Umgebungsvariablen (Qt, GTK, Firefox)
-cat > /etc/environment << 'EOF'
-MOZ_ENABLE_WAYLAND=1
-QT_QPA_PLATFORM=wayland
-QT_QPA_PLATFORMTHEME=gtk3
-GDK_BACKEND=wayland
-XDG_CURRENT_DESKTOP=sway
-XDG_SESSION_TYPE=wayland
+# GTK3 Darkmode
+cat > "$CONFIG_DIR/gtk-3.0/settings.ini" << 'EOF'
+[Settings]
+gtk-application-prefer-dark-theme=1
+gtk-theme-name=Adwaita-dark
+gtk-icon-theme-name=Papirus-Dark
+gtk-font-name=Noto Sans 10
+gtk-cursor-theme-name=Adwaita
+gtk-cursor-theme-size=24
 EOF
 
-# Wallpaper kopieren falls vorhanden
-mkdir -p "$TARGET_HOME/Pictures/wallpapers"
+# GTK4 Darkmode
+cat > "$CONFIG_DIR/gtk-4.0/settings.ini" << 'EOF'
+[Settings]
+gtk-application-prefer-dark-theme=1
+EOF
+
+success "GTK Darkmode gesetzt (Firefox, Thunar, alle GTK-Apps)"
+
+# Wayland + Qt Umgebungsvariablen
+# QT_QPA_PLATFORM=wayland;xcb = versuche Wayland, Fallback auf XCB (fuer MegaSync etc.)
+cat > /etc/environment << 'EOF'
+MOZ_ENABLE_WAYLAND=1
+QT_QPA_PLATFORM=wayland;xcb
+QT_QPA_PLATFORMTHEME=gtk3
+GDK_BACKEND=wayland,x11
+XDG_CURRENT_DESKTOP=sway
+XDG_SESSION_TYPE=wayland
+CLUTTER_BACKEND=wayland
+EOF
+
+success "Wayland/Qt Umgebungsvariablen gesetzt (inkl. MegaSync-Fix)"
+
+# Wallpaper kopieren
 if ls "$SCRIPT_DIR/wallpapers"/*.{jpg,png,jpeg} &>/dev/null 2>&1; then
     cp "$SCRIPT_DIR/wallpapers"/* "$TARGET_HOME/Pictures/wallpapers/" 2>/dev/null || true
     success "Wallpapers kopiert"
@@ -345,12 +369,11 @@ fi
 # snowfox-lite Script
 cat > /usr/local/bin/snowfox-lite << 'EOF'
 #!/bin/bash
-# SnowFoxOS Leicht-Modus für alte Hardware
+# SnowFoxOS Leicht-Modus fuer alte Hardware
 case "$1" in
     on)
-        swaymsg "output * power off; output * power on" 2>/dev/null || true
         echo "export WLR_NO_HARDWARE_CURSORS=1" >> ~/.bash_profile
-        echo "Leicht-Modus aktiv — beim nächsten Login wirksam"
+        echo "Leicht-Modus aktiv — beim naechsten Login wirksam"
         ;;
     off)
         sed -i '/WLR_NO_HARDWARE_CURSORS/d' ~/.bash_profile
@@ -382,6 +405,7 @@ echo ""
 echo -e "${GRAY}  Benutzer:   ${BOLD}$TARGET_USER${RESET}"
 echo -e "${GRAY}  Desktop:    ${BOLD}Sway + Waybar${RESET}"
 echo -e "${GRAY}  Audio:      ${BOLD}PipeWire${RESET}"
+echo -e "${GRAY}  Darkmode:   ${BOLD}GTK3 + GTK4${RESET}"
 echo -e "${GRAY}  GPU:        ${BOLD}$(
     $IS_HYBRID && echo "Hybrid (AMD + Nvidia)" || \
     { $HAS_NVIDIA && echo "Nvidia"; } || \
