@@ -2,13 +2,6 @@
 #  SnowFoxOS v2.0 — Sway Konfiguration
 # ============================================================
 
-exec systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
-exec export XDG_CURRENT_DESKTOP=sway
-exec export XDG_SESSION_TYPE=wayland
-exec export MOZ_ENABLE_WAYLAND=1
-exec export QT_QPA_PLATFORM=wayland
-exec export GDK_BACKEND=wayland
-
 # Modifier: Super-Taste (Windows-Taste)
 set $mod Mod4
 
@@ -31,9 +24,10 @@ set $inactive #2a2a2a
 font pango:Inter 10
 
 # ── Ausgabe / Monitor ───────────────────────────────────────
-# Hintergrund — Wallpaper falls vorhanden, sonst dunkel
-output * bg ~/Pictures/wallpapers/wallpaper.jpg fill 2>/dev/null || \
 output * bg #0f0f0f solid_color
+
+# Wallpaper wird per exec gesetzt falls vorhanden
+exec_always ~/.config/sway/wallpaper.sh
 
 # ── Eingabe ─────────────────────────────────────────────────
 input type:keyboard {
