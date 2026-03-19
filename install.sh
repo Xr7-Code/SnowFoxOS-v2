@@ -137,23 +137,24 @@ apt-get install -y \
 
 success "Sway Desktop installiert"
 
-# Display Manager — greetd (minimal, keine XFCE-Abhängigkeiten)
-apt-get install -y greetd greetd-tuigreet
+# Kein Display Manager — Sway startet automatisch nach Login in TTY1
+BASH_PROFILE="$TARGET_HOME/.bash_profile"
+if ! grep -q "exec sway" "$BASH_PROFILE" 2>/dev/null; then
+    echo '[ "$(tty)" = "/dev/tty1" ] && exec sway' >> "$BASH_PROFILE"
+fi
 
-# greetd konfigurieren: startet direkt Sway nach Login
-cat > /etc/greetd/config.toml << EOF
-[terminal]
-vt = 1
+# Autologin auf TTY1 (bequemer Start)
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << AUTOLOGIN
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $TARGET_USER --noclear %I \$TERM
+AUTOLOGIN
 
-[default_session]
-command = "tuigreet --time --greeting 'SnowFoxOS' --cmd sway"
-user = "greeter"
-EOF
-
-systemctl enable greetd
 systemctl disable lightdm 2>/dev/null || true
+systemctl disable greetd 2>/dev/null || true
 
-success "greetd installiert (minimaler Login-Manager)"
+success "Sway Autostart eingerichtet (TTY1 → Sway startet automatisch)"
 
 # ============================================================
 # SCHRITT 4 — Terminal & Apps
