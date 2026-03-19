@@ -129,7 +129,7 @@ apt-get install -y \
     playerctl \
     network-manager \
     network-manager-gnome \
-    nmtui \
+
     blueman \
     bluez \
     fonts-inter \
