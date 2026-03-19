@@ -26,7 +26,7 @@ step()    { echo -e "\n${PURPLE}${BOLD}━━━━━━━━━━━━━�
 
 # Root-Check
 if [[ $EUID -ne 0 ]]; then
-    error "sudo ./install.sh"
+    error "Bitte mit sudo ausführen: sudo ./install.sh"
 fi
 
 # Ziel-User ermitteln
@@ -45,7 +45,7 @@ sleep 1
 # ============================================================
 # SCHRITT 1 — System aktualisieren
 # ============================================================
-step "1/7 — System aktualisieren"
+step "1/8 — System aktualisieren"
 
 apt-get update -qq
 apt-get upgrade -y
@@ -54,17 +54,21 @@ apt-get install -y \
     build-essential \
     ca-certificates \
     pciutils usbutils \
-    htop neofetch \
+    htop btop neofetch \
     bash-completion \
     xdg-utils \
-    xdg-user-dirs
+    xdg-user-dirs \
+    rfkill
+
+# Standard-Ordner erstellen (Bilder, Musik, etc.)
+sudo -u "$TARGET_USER" xdg-user-dirs-update
 
 success "System aktualisiert"
 
 # ============================================================
 # SCHRITT 2 — GPU-Erkennung & Treiber
 # ============================================================
-step "2/7 — GPU-Erkennung & Treiber"
+step "2/8 — GPU-Erkennung & Treiber"
 
 GPU_INFO=$(lspci | grep -iE 'vga|3d|display')
 HAS_NVIDIA=false
@@ -87,7 +91,6 @@ if $HAS_NVIDIA; then
         sed -i 's/main$/main contrib non-free non-free-firmware/' /etc/apt/sources.list
     apt-get update -qq
     apt-get install -y nvidia-driver firmware-misc-nonfree
-    # Nvidia + Wayland
     apt-get install -y libgbm1 libnvidia-egl-wayland1 2>/dev/null || true
     success "Nvidia Treiber installiert"
 fi
@@ -99,7 +102,7 @@ if $IS_HYBRID; then
     success "envycontrol installiert (sudo envycontrol -s hybrid|nvidia|integrated)"
 fi
 
-# Fallback Intel
+# Fallback
 if ! $HAS_NVIDIA && ! $HAS_AMD; then
     apt-get install -y libgl1-mesa-dri mesa-vulkan-drivers 2>/dev/null || true
 fi
@@ -107,7 +110,7 @@ fi
 # ============================================================
 # SCHRITT 3 — Sway & Wayland Desktop
 # ============================================================
-step "3/7 — Sway + Waybar + Wofi + Dunst + Swaylock"
+step "3/8 — Sway + Waybar + Wofi + Dunst + Swaylock"
 
 apt-get install -y \
     sway \
@@ -124,10 +127,9 @@ apt-get install -y \
     slurp \
     brightnessctl \
     playerctl \
-    pavucontrol \
-    pulseaudio \
     network-manager \
     network-manager-gnome \
+    nmtui \
     blueman \
     bluez \
     fonts-inter \
@@ -137,29 +139,50 @@ apt-get install -y \
 
 success "Sway Desktop installiert"
 
-# Kein Display Manager — Sway startet automatisch nach Login in TTY1
+# ── Sway startet automatisch nach Login in TTY1 ────────────
 BASH_PROFILE="$TARGET_HOME/.bash_profile"
 if ! grep -q "exec sway" "$BASH_PROFILE" 2>/dev/null; then
+    echo '' >> "$BASH_PROFILE"
+    echo '# SnowFoxOS — Sway automatisch starten' >> "$BASH_PROFILE"
     echo '[ "$(tty)" = "/dev/tty1" ] && exec sway' >> "$BASH_PROFILE"
 fi
 
-# Autologin auf TTY1 (bequemer Start)
-mkdir -p /etc/systemd/system/getty@tty1.service.d
-cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << AUTOLOGIN
-[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin $TARGET_USER --noclear %I \$TERM
-AUTOLOGIN
+# Kein Autologin — Benutzer muss Passwort eingeben
+# Autologin-Config entfernen falls vorhanden
+rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
+rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null || true
 
+# Andere Display Manager deaktivieren
 systemctl disable lightdm 2>/dev/null || true
-systemctl disable greetd 2>/dev/null || true
+systemctl disable greetd  2>/dev/null || true
+systemctl disable gdm3    2>/dev/null || true
 
-success "Sway Autostart eingerichtet (TTY1 → Sway startet automatisch)"
+success "Sway Autostart eingerichtet (Login → Passwort → Sway startet)"
 
 # ============================================================
-# SCHRITT 4 — Terminal & Apps
+# SCHRITT 4 — Audio (PipeWire statt PulseAudio)
 # ============================================================
-step "4/7 — Terminal & Standard-Apps"
+step "4/8 — Audio (PipeWire)"
+
+apt-get install -y \
+    pipewire \
+    pipewire-pulse \
+    pipewire-alsa \
+    wireplumber \
+    pavucontrol
+
+# PulseAudio entfernen falls installiert
+apt-get remove --purge -y pulseaudio pulseaudio-utils 2>/dev/null || true
+
+# PipeWire für den User aktivieren
+sudo -u "$TARGET_USER" systemctl --user enable pipewire pipewire-pulse wireplumber 2>/dev/null || true
+
+success "PipeWire installiert (leichter als PulseAudio)"
+
+# ============================================================
+# SCHRITT 5 — Terminal & Apps
+# ============================================================
+step "5/8 — Terminal & Standard-Apps"
 
 apt-get install -y \
     kitty \
@@ -167,7 +190,8 @@ apt-get install -y \
     thunar \
     thunar-archive-plugin \
     thunar-volman \
-    gvfs gvfs-backends \
+    gvfs \
+    gvfs-backends \
     mousepad \
     ristretto \
     file-roller
@@ -175,9 +199,9 @@ apt-get install -y \
 success "Terminal (Kitty) & Apps installiert"
 
 # ============================================================
-# SCHRITT 5 — Wine
+# SCHRITT 6 — Wine
 # ============================================================
-step "5/7 — Wine (.exe Kompatibilität)"
+step "6/8 — Wine (.exe Kompatibilität)"
 
 dpkg --add-architecture i386
 apt-get update -qq
@@ -185,12 +209,23 @@ apt-get install -y wine wine32 wine64 2>/dev/null || \
     apt-get install -y wine 2>/dev/null || \
     warn "Wine nicht installierbar — manuell: apt install wine"
 
+# .exe Rechtsklick-Integration
+cat > /usr/share/applications/wine-open.desktop << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=Mit Wine öffnen
+Exec=wine %f
+MimeType=application/x-ms-dos-executable;application/x-msi;
+NoDisplay=false
+Icon=wine
+EOF
+
 success "Wine installiert"
 
 # ============================================================
-# SCHRITT 6 — zram
+# SCHRITT 7 — zram & Boot-Optimierung
 # ============================================================
-step "6/7 — zram RAM-Optimierung"
+step "7/8 — zram & Optimierung"
 
 apt-get install -y zram-tools
 
@@ -201,12 +236,34 @@ PRIORITY=100
 EOF
 
 systemctl enable zramswap
-success "zram aktiviert (lz4, 50%)"
+
+# Unnötige Dienste deaktivieren
+info "Unnötige Dienste deaktivieren..."
+for svc in avahi-daemon cups cups-browsed ModemManager e2scrub_reap; do
+    systemctl disable "$svc" 2>/dev/null && info "  Deaktiviert: $svc" || true
+done
+systemctl mask NetworkManager-wait-online.service 2>/dev/null || true
+
+# NetworkManager richtig konfigurieren (WLAN fix für rtw88 und andere Chips)
+mkdir -p /etc/NetworkManager/conf.d
+cat > /etc/NetworkManager/conf.d/snowfox.conf << 'EOF'
+[device]
+wifi.scan-rand-mac-address=no
+
+[main]
+plugins=ifupdown,keyfile
+
+[ifupdown]
+managed=true
+EOF
+
+systemctl enable NetworkManager
+success "zram + Optimierungen fertig"
 
 # ============================================================
-# SCHRITT 7 — Konfigurationsdateien kopieren
+# SCHRITT 8 — Konfigurationsdateien kopieren
 # ============================================================
-step "7/7 — Konfiguration installieren"
+step "8/8 — Konfiguration installieren"
 
 CONFIG_DIR="$TARGET_HOME/.config"
 mkdir -p \
@@ -217,21 +274,23 @@ mkdir -p \
     "$CONFIG_DIR/swaylock" \
     "$CONFIG_DIR/kitty"
 
-# Sway Config
-cp "$SCRIPT_DIR/configs/sway/config"     "$CONFIG_DIR/sway/config"
+# Sway
+cp "$SCRIPT_DIR/configs/sway/config"       "$CONFIG_DIR/sway/config"
 cp "$SCRIPT_DIR/configs/sway/wallpaper.sh" "$CONFIG_DIR/sway/wallpaper.sh"
+cp "$SCRIPT_DIR/configs/sway/powermenu.sh" "$CONFIG_DIR/sway/powermenu.sh"
 chmod +x "$CONFIG_DIR/sway/wallpaper.sh"
+chmod +x "$CONFIG_DIR/sway/powermenu.sh"
 
 # Waybar
-cp "$SCRIPT_DIR/configs/waybar/config"   "$CONFIG_DIR/waybar/config"
+cp "$SCRIPT_DIR/configs/waybar/config"    "$CONFIG_DIR/waybar/config"
 cp "$SCRIPT_DIR/configs/waybar/style.css" "$CONFIG_DIR/waybar/style.css"
 
 # Wofi
-cp "$SCRIPT_DIR/configs/wofi/style.css"  "$CONFIG_DIR/wofi/style.css"
-cp "$SCRIPT_DIR/configs/wofi/config"     "$CONFIG_DIR/wofi/config"
+cp "$SCRIPT_DIR/configs/wofi/config"    "$CONFIG_DIR/wofi/config"
+cp "$SCRIPT_DIR/configs/wofi/style.css" "$CONFIG_DIR/wofi/style.css"
 
 # Dunst
-cp "$SCRIPT_DIR/configs/dunst/dunstrc"   "$CONFIG_DIR/dunst/dunstrc"
+cp "$SCRIPT_DIR/configs/dunst/dunstrc" "$CONFIG_DIR/dunst/dunstrc"
 
 # Swaylock
 cp "$SCRIPT_DIR/configs/swaylock/config" "$CONFIG_DIR/swaylock/config"
@@ -239,65 +298,62 @@ cp "$SCRIPT_DIR/configs/swaylock/config" "$CONFIG_DIR/swaylock/config"
 # Kitty Terminal
 cat > "$CONFIG_DIR/kitty/kitty.conf" << 'EOF'
 # SnowFoxOS — Kitty Terminal
-font_family      Noto Mono
-font_size        11.0
-cursor           #9B59B6
+font_family       Noto Mono
+font_size         11.0
+cursor            #9B59B6
 cursor_text_color #0f0f0f
-
-background       #0f0f0f
-foreground       #e8e8e8
-
-# Farben
-color0  #1a1a1a
-color1  #e05555
-color2  #5faf5f
-color3  #E67E22
-color4  #5f87af
-color5  #9B59B6
-color6  #5fafaf
-color7  #bcbcbc
-color8  #3a3a3a
-color9  #ff6e6e
-color10 #87d787
-color11 #ffd787
-color12 #87afd7
-color13 #c397d8
-color14 #87d7d7
-color15 #e8e8e8
-
+background        #0f0f0f
+foreground        #e8e8e8
+color0   #1a1a1a
+color1   #e05555
+color2   #5faf5f
+color3   #E67E22
+color4   #5f87af
+color5   #9B59B6
+color6   #5fafaf
+color7   #bcbcbc
+color8   #3a3a3a
+color9   #ff6e6e
+color10  #87d787
+color11  #ffd787
+color12  #87afd7
+color13  #c397d8
+color14  #87d7d7
+color15  #e8e8e8
 window_padding_width 8
 hide_window_decorations yes
 confirm_os_window_close 0
 EOF
 
+# Wayland Umgebungsvariablen (Qt, GTK, Firefox)
+cat > /etc/environment << 'EOF'
+MOZ_ENABLE_WAYLAND=1
+QT_QPA_PLATFORM=wayland
+QT_QPA_PLATFORMTHEME=gtk3
+GDK_BACKEND=wayland
+XDG_CURRENT_DESKTOP=sway
+XDG_SESSION_TYPE=wayland
+EOF
+
 # Wallpaper kopieren falls vorhanden
+mkdir -p "$TARGET_HOME/Pictures/wallpapers"
 if ls "$SCRIPT_DIR/wallpapers"/*.{jpg,png,jpeg} &>/dev/null 2>&1; then
-    mkdir -p "$TARGET_HOME/Pictures/wallpapers"
     cp "$SCRIPT_DIR/wallpapers"/* "$TARGET_HOME/Pictures/wallpapers/" 2>/dev/null || true
     success "Wallpapers kopiert"
 fi
 
-# Berechtigungen setzen
-chown -R "$TARGET_USER:$TARGET_USER" "$CONFIG_DIR"
-[[ -d "$TARGET_HOME/Pictures" ]] && chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/Pictures"
-
-# Unnötige Dienste deaktivieren
-info "Unnötige Dienste deaktivieren..."
-for svc in avahi-daemon cups cups-browsed ModemManager; do
-    systemctl disable "$svc" 2>/dev/null && info "  Deaktiviert: $svc" || true
-done
-
 # snowfox-lite Script
 cat > /usr/local/bin/snowfox-lite << 'EOF'
 #!/bin/bash
-# SnowFoxOS Leicht-Modus
+# SnowFoxOS Leicht-Modus für alte Hardware
 case "$1" in
     on)
-        echo "export WLR_NO_HARDWARE_CURSORS=1" >> ~/.profile
+        swaymsg "output * power off; output * power on" 2>/dev/null || true
+        echo "export WLR_NO_HARDWARE_CURSORS=1" >> ~/.bash_profile
         echo "Leicht-Modus aktiv — beim nächsten Login wirksam"
         ;;
     off)
-        sed -i '/WLR_NO_HARDWARE_CURSORS/d' ~/.profile
+        sed -i '/WLR_NO_HARDWARE_CURSORS/d' ~/.bash_profile
         echo "Leicht-Modus deaktiviert"
         ;;
     *) echo "Verwendung: snowfox-lite [on|off]" ;;
@@ -305,8 +361,12 @@ esac
 EOF
 chmod +x /usr/local/bin/snowfox-lite
 
+# Berechtigungen setzen
+chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config"
+chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/Pictures"
+
 # ============================================================
-# Fertig
+# Fertig!
 # ============================================================
 echo ""
 echo -e "${PURPLE}${BOLD}"
@@ -319,15 +379,25 @@ echo "  ╚══════╝╚═╝  ╚══╝ ╚═════╝  �
 echo -e "${RESET}"
 echo -e "${GREEN}${BOLD}  SnowFoxOS v2.0 erfolgreich installiert!${RESET}"
 echo ""
-echo -e "${GRAY}  Benutzer:  ${BOLD}$TARGET_USER${RESET}"
-echo -e "${GRAY}  Desktop:   ${BOLD}Sway + Waybar${RESET}"
-echo -e "${GRAY}  GPU:       ${BOLD}$(
-    $IS_HYBRID && echo 'Hybrid (AMD + Nvidia)' || \
-    ($HAS_NVIDIA && echo 'Nvidia') || \
-    ($HAS_AMD && echo 'AMD') || \
-    echo 'Intel/andere'
+echo -e "${GRAY}  Benutzer:   ${BOLD}$TARGET_USER${RESET}"
+echo -e "${GRAY}  Desktop:    ${BOLD}Sway + Waybar${RESET}"
+echo -e "${GRAY}  Audio:      ${BOLD}PipeWire${RESET}"
+echo -e "${GRAY}  GPU:        ${BOLD}$(
+    $IS_HYBRID && echo "Hybrid (AMD + Nvidia)" || \
+    { $HAS_NVIDIA && echo "Nvidia"; } || \
+    { $HAS_AMD && echo "AMD"; } || \
+    echo "Intel/andere"
 )${RESET}"
-echo -e "${GRAY}  zram:      ${BOLD}aktiv (lz4, 50%)${RESET}"
+echo -e "${GRAY}  zram:       ${BOLD}aktiv (lz4, 50%)${RESET}"
+echo -e "${GRAY}  Login:      ${BOLD}TTY1 → Passwort → Sway${RESET}"
+echo ""
+echo -e "${ORANGE}${BOLD}  Shortcuts:${RESET}"
+echo -e "  ${GRAY}Super+Return   ${RESET}Terminal"
+echo -e "  ${GRAY}Super+Space    ${RESET}App-Launcher"
+echo -e "  ${GRAY}Super+B        ${RESET}Firefox"
+echo -e "  ${GRAY}Super+E        ${RESET}Dateimanager"
+echo -e "  ${GRAY}Super+L        ${RESET}Bildschirm sperren"
+echo -e "  ${GRAY}Super+Shift+E  ${RESET}Power-Menü"
 echo ""
 echo -e "${ORANGE}${BOLD}  → Neu starten: sudo reboot${RESET}"
 echo ""
