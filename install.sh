@@ -219,6 +219,8 @@ mkdir -p \
 
 # Sway Config
 cp "$SCRIPT_DIR/configs/sway/config"     "$CONFIG_DIR/sway/config"
+cp "$SCRIPT_DIR/configs/sway/wallpaper.sh" "$CONFIG_DIR/sway/wallpaper.sh"
+chmod +x "$CONFIG_DIR/sway/wallpaper.sh"
 
 # Waybar
 cp "$SCRIPT_DIR/configs/waybar/config"   "$CONFIG_DIR/waybar/config"
