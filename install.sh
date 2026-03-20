@@ -58,11 +58,10 @@ apt-get install -y \
     bash-completion \
     xdg-utils \
     xdg-user-dirs \
-    rfkill
+    rfkill \
+    imagemagick
 
-# Standard-Ordner erstellen
 sudo -u "$TARGET_USER" xdg-user-dirs-update
-
 success "System aktualisiert"
 
 # ============================================================
@@ -131,7 +130,6 @@ apt-get install -y \
     fonts-noto-color-emoji \
     papirus-icon-theme
 
-# Blueman separat (braucht contrib)
 apt-get install -y blueman 2>/dev/null || warn "Blueman nicht verfügbar — Bluetooth nur per CLI"
 
 success "Sway Desktop installiert"
@@ -144,16 +142,14 @@ if ! grep -q "exec sway" "$BASH_PROFILE" 2>/dev/null; then
     echo '[ "$(tty)" = "/dev/tty1" ] && exec sway' >> "$BASH_PROFILE"
 fi
 
-# Kein Autologin — Benutzer gibt Passwort ein
+# Kein Autologin
 rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
 rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null || true
-
-# Andere Display Manager deaktivieren
 systemctl disable lightdm 2>/dev/null || true
 systemctl disable greetd  2>/dev/null || true
 systemctl disable gdm3    2>/dev/null || true
 
-success "Sway Autostart eingerichtet (Login → Passwort → Sway startet)"
+success "Sway Autostart eingerichtet"
 
 # ============================================================
 # SCHRITT 4 — Audio (PipeWire)
@@ -195,7 +191,6 @@ success "Terminal (Kitty) & Apps installiert"
 # ============================================================
 step "6/9 — Brave Browser"
 
-# Brave Repo hinzufügen
 curl -fsS https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
     | tee /usr/share/keyrings/brave-browser-archive-keyring.gpg > /dev/null
 
@@ -204,14 +199,11 @@ echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] http
 
 apt-get update -qq
 apt-get install -y brave-browser
-
-# Firefox entfernen
 apt-get remove --purge -y firefox-esr 2>/dev/null || true
 
-# Brave Preferences vorsetzen (werden beim ersten Start geladen)
+# Brave Preferences vorsetzen
 BRAVE_CONFIG_DIR="$TARGET_HOME/.config/BraveSoftware/Brave-Browser/Default"
 mkdir -p "$BRAVE_CONFIG_DIR"
-
 cat > "$BRAVE_CONFIG_DIR/Preferences" << 'EOF'
 {
   "browser": {
@@ -230,9 +222,6 @@ cat > "$BRAVE_CONFIG_DIR/Preferences" << 'EOF'
       "mode": 2
     }
   },
-  "net": {
-    "network_prediction_options": 2
-  },
   "profile": {
     "default_content_setting_values": {
       "notifications": 2
@@ -240,10 +229,9 @@ cat > "$BRAVE_CONFIG_DIR/Preferences" << 'EOF'
   }
 }
 EOF
-
 chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/BraveSoftware"
 
-success "Brave Browser installiert (Memory Saver + Hardware-Beschleunigung aktiv)"
+success "Brave Browser installiert"
 
 # ============================================================
 # SCHRITT 7 — Wine
@@ -269,7 +257,7 @@ EOF
 success "Wine installiert"
 
 # ============================================================
-# SCHRITT 7 — zram & Optimierung
+# SCHRITT 8 — zram & Optimierung
 # ============================================================
 step "8/9 — zram & Optimierung"
 
@@ -283,14 +271,12 @@ EOF
 
 systemctl enable zramswap
 
-# Unnötige Dienste deaktivieren
 info "Unnötige Dienste deaktivieren..."
 for svc in avahi-daemon cups cups-browsed ModemManager e2scrub_reap; do
     systemctl disable "$svc" 2>/dev/null && info "  Deaktiviert: $svc" || true
 done
 systemctl mask NetworkManager-wait-online.service 2>/dev/null || true
 
-# NetworkManager WLAN-Fix (funktioniert mit rtw88 und anderen Chips)
 mkdir -p /etc/NetworkManager/conf.d
 cat > /etc/NetworkManager/conf.d/snowfox.conf << 'EOF'
 [device]
@@ -304,13 +290,12 @@ managed=true
 EOF
 
 systemctl enable NetworkManager
-
 success "zram + Optimierungen fertig"
 
 # ============================================================
-# SCHRITT 8 — Konfiguration, Darkmode & Portal-Fix
+# SCHRITT 9 — Konfiguration, Icons & Darkmode
 # ============================================================
-step "9/9 — Konfiguration, Darkmode & Portal-Fix"
+step "9/9 — Konfiguration, Icons & Darkmode"
 
 CONFIG_DIR="$TARGET_HOME/.config"
 mkdir -p \
@@ -325,28 +310,28 @@ mkdir -p \
     "$CONFIG_DIR/xdg-desktop-portal" \
     "$TARGET_HOME/Pictures/wallpapers"
 
-# Sway
+# ── Sway ────────────────────────────────────────────────────
 cp "$SCRIPT_DIR/configs/sway/config"       "$CONFIG_DIR/sway/config"
 cp "$SCRIPT_DIR/configs/sway/wallpaper.sh" "$CONFIG_DIR/sway/wallpaper.sh"
 cp "$SCRIPT_DIR/configs/sway/powermenu.sh" "$CONFIG_DIR/sway/powermenu.sh"
 chmod +x "$CONFIG_DIR/sway/wallpaper.sh"
 chmod +x "$CONFIG_DIR/sway/powermenu.sh"
 
-# Waybar
+# ── Waybar ──────────────────────────────────────────────────
 cp "$SCRIPT_DIR/configs/waybar/config"    "$CONFIG_DIR/waybar/config"
 cp "$SCRIPT_DIR/configs/waybar/style.css" "$CONFIG_DIR/waybar/style.css"
 
-# Wofi
+# ── Wofi ────────────────────────────────────────────────────
 cp "$SCRIPT_DIR/configs/wofi/config"    "$CONFIG_DIR/wofi/config"
 cp "$SCRIPT_DIR/configs/wofi/style.css" "$CONFIG_DIR/wofi/style.css"
 
-# Dunst
+# ── Dunst ───────────────────────────────────────────────────
 cp "$SCRIPT_DIR/configs/dunst/dunstrc" "$CONFIG_DIR/dunst/dunstrc"
 
-# Swaylock
+# ── Swaylock ────────────────────────────────────────────────
 cp "$SCRIPT_DIR/configs/swaylock/config" "$CONFIG_DIR/swaylock/config"
 
-# Kitty Terminal
+# ── Kitty ───────────────────────────────────────────────────
 cat > "$CONFIG_DIR/kitty/kitty.conf" << 'EOF'
 # SnowFoxOS — Kitty Terminal
 font_family       Noto Mono
@@ -376,7 +361,7 @@ hide_window_decorations yes
 confirm_os_window_close 0
 EOF
 
-# GTK3 Darkmode
+# ── GTK Darkmode ────────────────────────────────────────────
 cat > "$CONFIG_DIR/gtk-3.0/settings.ini" << 'EOF'
 [Settings]
 gtk-application-prefer-dark-theme=1
@@ -387,15 +372,12 @@ gtk-cursor-theme-name=Adwaita
 gtk-cursor-theme-size=24
 EOF
 
-# GTK4 Darkmode
 cat > "$CONFIG_DIR/gtk-4.0/settings.ini" << 'EOF'
 [Settings]
 gtk-application-prefer-dark-theme=1
 EOF
 
-success "GTK Darkmode gesetzt"
-
-# xdg-desktop-portal — wlr statt gtk (verhindert Timeouts & langsame Programme)
+# ── xdg-desktop-portal (wlr, kein gtk) ─────────────────────
 apt-get install -y xdg-desktop-portal xdg-desktop-portal-wlr
 apt-get remove --purge -y xdg-desktop-portal-gtk 2>/dev/null || true
 
@@ -407,10 +389,9 @@ org.freedesktop.impl.portal.ScreenCast=wlr
 org.freedesktop.impl.portal.FileChooser=wlr
 EOF
 
-success "xdg-desktop-portal-wlr installiert (schnellerer Programmstart)"
+success "xdg-desktop-portal-wlr installiert"
 
-# Wayland + Qt Umgebungsvariablen
-# wayland;xcb = Wayland bevorzugt, Fallback XCB für ältere Qt-Apps (MegaSync etc.)
+# ── Wayland/Qt Umgebungsvariablen ───────────────────────────
 cat > /etc/environment << 'EOF'
 MOZ_ENABLE_WAYLAND=1
 QT_QPA_PLATFORM=wayland;xcb
@@ -421,9 +402,78 @@ XDG_SESSION_TYPE=wayland
 CLUTTER_BACKEND=wayland
 EOF
 
-success "Wayland/Qt Umgebungsvariablen gesetzt"
+# ── SnowFox Logo als System-Icon installieren ───────────────
+ASSET="$SCRIPT_DIR/assets/fuchs.png"
+if [[ -f "$ASSET" ]]; then
+    info "SnowFox Logo wird installiert..."
+    for SIZE in 16 24 32 48 64 128 256; do
+        ICON_DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+        mkdir -p "$ICON_DIR"
+        convert "$ASSET" -resize "${SIZE}x${SIZE}" "$ICON_DIR/snowfox.png" 2>/dev/null || true
+    done
+    gtk-update-icon-cache /usr/share/icons/hicolor/ 2>/dev/null || true
+    success "SnowFox Logo als System-Icon installiert"
+else
+    warn "assets/fuchs.png nicht gefunden — Icon wird übersprungen"
+fi
 
-# Wallpaper kopieren
+# ── Plymouth Bootscreen ─────────────────────────────────────
+ASSET="$SCRIPT_DIR/assets/fuchs.png"
+if [[ -f "$ASSET" ]]; then
+    info "Plymouth Bootscreen wird eingerichtet..."
+    apt-get install -y plymouth plymouth-themes 2>/dev/null || true
+
+    PLYMOUTH_DIR="/usr/share/plymouth/themes/snowfox"
+    mkdir -p "$PLYMOUTH_DIR"
+
+    # Logo für Plymouth skalieren
+    convert "$ASSET" -resize 200x200 "$PLYMOUTH_DIR/logo.png" 2>/dev/null || \
+        cp "$ASSET" "$PLYMOUTH_DIR/logo.png"
+
+    cat > "$PLYMOUTH_DIR/snowfox.plymouth" << 'EOF'
+[Plymouth Theme]
+Name=SnowFoxOS
+Description=SnowFoxOS Boot Theme
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/snowfox
+ScriptFile=/usr/share/plymouth/themes/snowfox/snowfox.script
+EOF
+
+    cat > "$PLYMOUTH_DIR/snowfox.script" << 'EOF'
+bg = Image("background.png");
+if (bg)
+    bg_sprite = Sprite(bg);
+else {
+    bg_sprite = Sprite();
+    bg_sprite.SetImage(Image.Fill(Window.GetWidth(), Window.GetHeight(), 0.06, 0.06, 0.06, 1));
+}
+
+logo = Image("logo.png");
+logo_sprite = Sprite(logo);
+logo_sprite.SetX(Window.GetWidth() / 2 - logo.GetWidth() / 2);
+logo_sprite.SetY(Window.GetHeight() / 2 - logo.GetHeight() / 2 - 40);
+
+message_sprite = Sprite();
+message_sprite.SetPosition(Window.GetWidth() / 2 - 100, Window.GetHeight() / 2 + 100, 10);
+EOF
+
+    # Dunkler Hintergrund für Plymouth
+    convert -size 1920x1080 xc:"#0f0f0f" "$PLYMOUTH_DIR/background.png" 2>/dev/null || true
+
+    update-alternatives --install /usr/share/plymouth/themes/default.plymouth \
+        default.plymouth "$PLYMOUTH_DIR/snowfox.plymouth" 100 2>/dev/null || true
+    update-alternatives --set default.plymouth \
+        "$PLYMOUTH_DIR/snowfox.plymouth" 2>/dev/null || true
+
+    update-initramfs -u 2>/dev/null || true
+    success "Plymouth Bootscreen eingerichtet"
+else
+    warn "assets/fuchs.png nicht gefunden — Plymouth wird übersprungen"
+fi
+
+# ── Wallpaper ───────────────────────────────────────────────
 if [ -d "$SCRIPT_DIR/wallpapers" ] && [ "$(ls -A "$SCRIPT_DIR/wallpapers" 2>/dev/null)" ]; then
     cp "$SCRIPT_DIR/wallpapers"/* "$TARGET_HOME/Pictures/wallpapers/"
     success "Wallpapers kopiert"
@@ -431,14 +481,13 @@ else
     warn "Kein Wallpaper gefunden — dunkle Hintergrundfarbe aktiv"
 fi
 
-# snowfox-lite Script
+# ── snowfox-lite ────────────────────────────────────────────
 cat > /usr/local/bin/snowfox-lite << 'EOF'
 #!/bin/bash
-# SnowFoxOS Leicht-Modus fuer alte Hardware
 case "$1" in
     on)
         echo "export WLR_NO_HARDWARE_CURSORS=1" >> ~/.bash_profile
-        echo "Leicht-Modus aktiv — beim naechsten Login wirksam"
+        echo "Leicht-Modus aktiv — beim nächsten Login wirksam"
         ;;
     off)
         sed -i '/WLR_NO_HARDWARE_CURSORS/d' ~/.bash_profile
@@ -449,7 +498,7 @@ esac
 EOF
 chmod +x /usr/local/bin/snowfox-lite
 
-# Berechtigungen setzen
+# ── Berechtigungen ──────────────────────────────────────────
 chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config"
 chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/Pictures"
 
@@ -469,6 +518,7 @@ echo -e "${GREEN}${BOLD}  SnowFoxOS v2.0 erfolgreich installiert!${RESET}"
 echo ""
 echo -e "${GRAY}  Benutzer:   ${BOLD}$TARGET_USER${RESET}"
 echo -e "${GRAY}  Desktop:    ${BOLD}Sway + Waybar${RESET}"
+echo -e "${GRAY}  Browser:    ${BOLD}Brave${RESET}"
 echo -e "${GRAY}  Audio:      ${BOLD}PipeWire${RESET}"
 echo -e "${GRAY}  Darkmode:   ${BOLD}GTK3 + GTK4${RESET}"
 echo -e "${GRAY}  Portal:     ${BOLD}xdg-desktop-portal-wlr${RESET}"
@@ -483,8 +533,8 @@ echo -e "${GRAY}  Login:      ${BOLD}TTY1 → Passwort → Sway${RESET}"
 echo ""
 echo -e "${ORANGE}${BOLD}  Shortcuts:${RESET}"
 echo -e "  ${GRAY}Super+Return   ${RESET}Terminal"
-echo -e "  ${GRAY}Super+Space    ${RESET}App-Launcher"
-echo -e "  ${GRAY}Super+B        ${RESET}Firefox"
+echo -e "  ${GRAY}Super+Space    ${RESET}App-Launcher (Wofi)"
+echo -e "  ${GRAY}Super+B        ${RESET}Brave Browser"
 echo -e "  ${GRAY}Super+E        ${RESET}Dateimanager"
 echo -e "  ${GRAY}Super+L        ${RESET}Bildschirm sperren"
 echo -e "  ${GRAY}Super+Shift+E  ${RESET}Power-Menü"
