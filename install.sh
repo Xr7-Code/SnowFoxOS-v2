@@ -60,7 +60,7 @@ apt-get install -y \
     xdg-user-dirs \
     rfkill
 
-# Standard-Ordner erstellen (Bilder, Musik, etc.)
+# Standard-Ordner erstellen
 sudo -u "$TARGET_USER" xdg-user-dirs-update
 
 success "System aktualisiert"
@@ -79,13 +79,11 @@ echo "$GPU_INFO" | grep -qi "nvidia" && HAS_NVIDIA=true && info "Nvidia GPU gefu
 echo "$GPU_INFO" | grep -qi "amd\|radeon\|advanced micro" && HAS_AMD=true && info "AMD GPU gefunden"
 $HAS_NVIDIA && $HAS_AMD && IS_HYBRID=true && warn "Hybrid-GPU (AMD + Nvidia) — envycontrol wird installiert"
 
-# AMD
 if $HAS_AMD; then
     apt-get install -y firmware-amd-graphics libgl1-mesa-dri mesa-vulkan-drivers
     success "AMD Treiber installiert"
 fi
 
-# Nvidia
 if $HAS_NVIDIA; then
     grep -q "non-free" /etc/apt/sources.list || \
         sed -i 's/main$/main contrib non-free non-free-firmware/' /etc/apt/sources.list
@@ -95,14 +93,12 @@ if $HAS_NVIDIA; then
     success "Nvidia Treiber installiert"
 fi
 
-# Hybrid
 if $IS_HYBRID; then
     apt-get install -y python3 python3-pip
     pip3 install envycontrol --break-system-packages 2>/dev/null || pip3 install envycontrol
     success "envycontrol installiert (sudo envycontrol -s hybrid|nvidia|integrated)"
 fi
 
-# Fallback
 if ! $HAS_NVIDIA && ! $HAS_AMD; then
     apt-get install -y libgl1-mesa-dri mesa-vulkan-drivers 2>/dev/null || true
 fi
@@ -135,9 +131,8 @@ apt-get install -y \
     fonts-noto-color-emoji \
     papirus-icon-theme
 
-# Blueman separat — braucht contrib repo
-apt-get install -y blueman 2>/dev/null || warn "Blueman nicht verfügbar — Bluetooth ohne GUI"
-
+# Blueman separat (braucht contrib)
+apt-get install -y blueman 2>/dev/null || warn "Blueman nicht verfügbar — Bluetooth nur per CLI"
 
 success "Sway Desktop installiert"
 
@@ -172,10 +167,7 @@ apt-get install -y \
     wireplumber \
     pavucontrol
 
-# PulseAudio entfernen falls vorhanden
 apt-get remove --purge -y pulseaudio pulseaudio-utils 2>/dev/null || true
-
-# PipeWire für den User aktivieren
 sudo -u "$TARGET_USER" systemctl --user enable pipewire pipewire-pulse wireplumber 2>/dev/null || true
 
 success "PipeWire installiert"
@@ -244,7 +236,7 @@ for svc in avahi-daemon cups cups-browsed ModemManager e2scrub_reap; do
 done
 systemctl mask NetworkManager-wait-online.service 2>/dev/null || true
 
-# NetworkManager WLAN-Fix
+# NetworkManager WLAN-Fix (funktioniert mit rtw88 und anderen Chips)
 mkdir -p /etc/NetworkManager/conf.d
 cat > /etc/NetworkManager/conf.d/snowfox.conf << 'EOF'
 [device]
@@ -262,9 +254,9 @@ systemctl enable NetworkManager
 success "zram + Optimierungen fertig"
 
 # ============================================================
-# SCHRITT 8 — Konfigurationsdateien & Darkmode
+# SCHRITT 8 — Konfiguration, Darkmode & Portal-Fix
 # ============================================================
-step "8/8 — Konfiguration & Darkmode"
+step "8/8 — Konfiguration, Darkmode & Portal-Fix"
 
 CONFIG_DIR="$TARGET_HOME/.config"
 mkdir -p \
@@ -276,6 +268,7 @@ mkdir -p \
     "$CONFIG_DIR/kitty" \
     "$CONFIG_DIR/gtk-3.0" \
     "$CONFIG_DIR/gtk-4.0" \
+    "$CONFIG_DIR/xdg-desktop-portal" \
     "$TARGET_HOME/Pictures/wallpapers"
 
 # Sway
@@ -346,10 +339,24 @@ cat > "$CONFIG_DIR/gtk-4.0/settings.ini" << 'EOF'
 gtk-application-prefer-dark-theme=1
 EOF
 
-success "GTK Darkmode gesetzt (Firefox, Thunar, alle GTK-Apps)"
+success "GTK Darkmode gesetzt"
+
+# xdg-desktop-portal — wlr statt gtk (verhindert Timeouts & langsame Programme)
+apt-get install -y xdg-desktop-portal xdg-desktop-portal-wlr
+apt-get remove --purge -y xdg-desktop-portal-gtk 2>/dev/null || true
+
+cat > "$CONFIG_DIR/xdg-desktop-portal/portals.conf" << 'EOF'
+[preferred]
+default=wlr
+org.freedesktop.impl.portal.Screenshot=wlr
+org.freedesktop.impl.portal.ScreenCast=wlr
+org.freedesktop.impl.portal.FileChooser=wlr
+EOF
+
+success "xdg-desktop-portal-wlr installiert (schnellerer Programmstart)"
 
 # Wayland + Qt Umgebungsvariablen
-# QT_QPA_PLATFORM=wayland;xcb = versuche Wayland, Fallback auf XCB (fuer MegaSync etc.)
+# wayland;xcb = Wayland bevorzugt, Fallback XCB für ältere Qt-Apps (MegaSync etc.)
 cat > /etc/environment << 'EOF'
 MOZ_ENABLE_WAYLAND=1
 QT_QPA_PLATFORM=wayland;xcb
@@ -360,7 +367,7 @@ XDG_SESSION_TYPE=wayland
 CLUTTER_BACKEND=wayland
 EOF
 
-success "Wayland/Qt Umgebungsvariablen gesetzt (inkl. MegaSync-Fix)"
+success "Wayland/Qt Umgebungsvariablen gesetzt"
 
 # Wallpaper kopieren
 if [ -d "$SCRIPT_DIR/wallpapers" ] && [ "$(ls -A "$SCRIPT_DIR/wallpapers" 2>/dev/null)" ]; then
@@ -410,6 +417,7 @@ echo -e "${GRAY}  Benutzer:   ${BOLD}$TARGET_USER${RESET}"
 echo -e "${GRAY}  Desktop:    ${BOLD}Sway + Waybar${RESET}"
 echo -e "${GRAY}  Audio:      ${BOLD}PipeWire${RESET}"
 echo -e "${GRAY}  Darkmode:   ${BOLD}GTK3 + GTK4${RESET}"
+echo -e "${GRAY}  Portal:     ${BOLD}xdg-desktop-portal-wlr${RESET}"
 echo -e "${GRAY}  GPU:        ${BOLD}$(
     $IS_HYBRID && echo "Hybrid (AMD + Nvidia)" || \
     { $HAS_NVIDIA && echo "Nvidia"; } || \
