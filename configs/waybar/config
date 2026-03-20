@@ -6,7 +6,7 @@
     "exclusive": true,
 
     "modules-left": [
-        "custom/menu",
+        "image",
         "sway/workspaces"
     ],
 
@@ -26,10 +26,10 @@
         "tray"
     ],
 
-    "custom/menu": {
-        "format": "<img src='/usr/share/icons/hicolor/24x24/apps/snowfox.png' alt='menu'/>",
+    "image": {
+        "path": "/usr/share/icons/hicolor/48x48/apps/snowfox.png",
+        "size": 24,
         "tooltip": false,
-        "return-type": "",
         "on-click": "wofi --show drun --prompt 'Suchen...'"
     },
 
