@@ -27,8 +27,9 @@
     ],
 
     "custom/menu": {
-        "format": "  ",
+        "format": "<img src='/usr/share/icons/hicolor/24x24/apps/snowfox.png' alt='menu'/>",
         "tooltip": false,
+        "return-type": "",
         "on-click": "wofi --show drun --prompt 'Suchen...'"
     },
 
