@@ -45,7 +45,7 @@ sleep 1
 # ============================================================
 # SCHRITT 1 — System aktualisieren
 # ============================================================
-step "1/8 — System aktualisieren"
+step "1/9 — System aktualisieren"
 
 apt-get update -qq
 apt-get upgrade -y
@@ -68,7 +68,7 @@ success "System aktualisiert"
 # ============================================================
 # SCHRITT 2 — GPU-Erkennung & Treiber
 # ============================================================
-step "2/8 — GPU-Erkennung & Treiber"
+step "2/9 — GPU-Erkennung & Treiber"
 
 GPU_INFO=$(lspci | grep -iE 'vga|3d|display')
 HAS_NVIDIA=false
@@ -106,7 +106,7 @@ fi
 # ============================================================
 # SCHRITT 3 — Sway & Wayland Desktop
 # ============================================================
-step "3/8 — Sway + Waybar + Wofi + Dunst + Swaylock"
+step "3/9 — Sway + Waybar + Wofi + Dunst + Swaylock"
 
 apt-get install -y \
     sway \
@@ -158,7 +158,7 @@ success "Sway Autostart eingerichtet (Login → Passwort → Sway startet)"
 # ============================================================
 # SCHRITT 4 — Audio (PipeWire)
 # ============================================================
-step "4/8 — Audio (PipeWire)"
+step "4/9 — Audio (PipeWire)"
 
 apt-get install -y \
     pipewire \
@@ -175,11 +175,10 @@ success "PipeWire installiert"
 # ============================================================
 # SCHRITT 5 — Terminal & Apps
 # ============================================================
-step "5/8 — Terminal & Standard-Apps"
+step "5/9 — Terminal & Standard-Apps"
 
 apt-get install -y \
     kitty \
-    firefox-esr \
     thunar \
     thunar-archive-plugin \
     thunar-volman \
@@ -192,9 +191,64 @@ apt-get install -y \
 success "Terminal (Kitty) & Apps installiert"
 
 # ============================================================
-# SCHRITT 6 — Wine
+# SCHRITT 6 — Browser (Brave)
 # ============================================================
-step "6/8 — Wine (.exe Kompatibilität)"
+step "6/9 — Brave Browser"
+
+# Brave Repo hinzufügen
+curl -fsS https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
+    | tee /usr/share/keyrings/brave-browser-archive-keyring.gpg > /dev/null
+
+echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" \
+    | tee /etc/apt/sources.list.d/brave-browser.list
+
+apt-get update -qq
+apt-get install -y brave-browser
+
+# Firefox entfernen
+apt-get remove --purge -y firefox-esr 2>/dev/null || true
+
+# Brave Preferences vorsetzen (werden beim ersten Start geladen)
+BRAVE_CONFIG_DIR="$TARGET_HOME/.config/BraveSoftware/Brave-Browser/Default"
+mkdir -p "$BRAVE_CONFIG_DIR"
+
+cat > "$BRAVE_CONFIG_DIR/Preferences" << 'EOF'
+{
+  "browser": {
+    "has_seen_welcome_page": true,
+    "show_home_button": false
+  },
+  "hardware_acceleration_mode": {
+    "enabled": true
+  },
+  "background_mode": {
+    "enabled": false
+  },
+  "performance_tuning": {
+    "high_efficiency_mode": {
+      "enabled": true,
+      "mode": 2
+    }
+  },
+  "net": {
+    "network_prediction_options": 2
+  },
+  "profile": {
+    "default_content_setting_values": {
+      "notifications": 2
+    }
+  }
+}
+EOF
+
+chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/BraveSoftware"
+
+success "Brave Browser installiert (Memory Saver + Hardware-Beschleunigung aktiv)"
+
+# ============================================================
+# SCHRITT 7 — Wine
+# ============================================================
+step "7/9 — Wine (.exe Kompatibilität)"
 
 dpkg --add-architecture i386
 apt-get update -qq
@@ -217,7 +271,7 @@ success "Wine installiert"
 # ============================================================
 # SCHRITT 7 — zram & Optimierung
 # ============================================================
-step "7/8 — zram & Optimierung"
+step "8/9 — zram & Optimierung"
 
 apt-get install -y zram-tools
 
@@ -256,7 +310,7 @@ success "zram + Optimierungen fertig"
 # ============================================================
 # SCHRITT 8 — Konfiguration, Darkmode & Portal-Fix
 # ============================================================
-step "8/8 — Konfiguration, Darkmode & Portal-Fix"
+step "9/9 — Konfiguration, Darkmode & Portal-Fix"
 
 CONFIG_DIR="$TARGET_HOME/.config"
 mkdir -p \
