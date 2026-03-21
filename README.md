@@ -102,20 +102,6 @@ After reboot, log in at TTY1 — Sway starts automatically.
 
 ---
 
-## Screenshots
-
-Screenshots were taken with `grim` — already included in the installation.
-
-```bash
-# Full screenshot
-grim ~/Pictures/screenshot.png
-
-# Area selection
-grim -g "$(slurp)" ~/Pictures/screenshot.png
-```
-
----
-
 <div align="center">
-<sub>Built with 🦊 on Debian 12</sub>
+<sub>Built from Xr7-Code on Debian 12</sub>
 </div>
