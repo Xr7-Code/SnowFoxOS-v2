@@ -95,8 +95,16 @@ if $IS_HYBRID; then
     pip3 install envycontrol --break-system-packages 2>/dev/null || \
         pip3 install envycontrol 2>/dev/null || \
         warn "envycontrol nicht installierbar — manuell: pip3 install envycontrol"
-    command -v envycontrol &>/dev/null && \
-        success "envycontrol installiert (sudo envycontrol -s hybrid|nvidia|integrated)" || true
+    if command -v envycontrol &>/dev/null; then
+        envycontrol -s nvidia 2>/dev/null && \
+            success "envycontrol: Nvidia-Modus aktiviert" || \
+            warn "envycontrol konnte Nvidia-Modus nicht setzen — manuell: sudo envycontrol -s nvidia"
+        echo ""
+        warn "Hybrid-GPU erkannt: Nvidia-Modus wurde aktiviert."
+        warn "Alle Monitore müssen an die Nvidia-GPU angeschlossen sein."
+        warn "Monitore am Motherboard-Ausgang (iGPU) werden nicht angezeigt."
+        echo ""
+    fi
 fi
 
 if ! $HAS_NVIDIA && ! $HAS_AMD; then
@@ -467,7 +475,7 @@ echo -e "${GRAY}  Audio:      ${BOLD}PipeWire${RESET}"
 echo -e "${GRAY}  Darkmode:   ${BOLD}GTK3 + GTK4${RESET}"
 echo -e "${GRAY}  Portal:     ${BOLD}xdg-desktop-portal-wlr${RESET}"
 echo -e "${GRAY}  GPU:        ${BOLD}$(
-    $IS_HYBRID && echo "Hybrid (AMD + Nvidia)" || \
+    $IS_HYBRID && echo "Hybrid (AMD + Nvidia) → Nvidia-Modus aktiv" || \
     { $HAS_NVIDIA && echo "Nvidia"; } || \
     { $HAS_AMD && echo "AMD"; } || \
     echo "Intel/andere"
@@ -484,5 +492,10 @@ echo -e "  ${GRAY}Super+E        ${RESET}Dateimanager"
 echo -e "  ${GRAY}Super+L        ${RESET}Bildschirm sperren"
 echo -e "  ${GRAY}Super+Shift+E  ${RESET}Power-Menü"
 echo ""
+if $IS_HYBRID; then
+    echo -e "${ORANGE}${BOLD}  ⚠ Hybrid-GPU: Alle Monitore an die Nvidia-Karte anschließen!${RESET}"
+    echo -e "${GRAY}     Motherboard-Ausgänge (iGPU) sind deaktiviert.${RESET}"
+    echo ""
+fi
 echo -e "${ORANGE}${BOLD}  → Neu starten: sudo reboot${RESET}"
 echo ""
