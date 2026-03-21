@@ -92,8 +92,11 @@ fi
 
 if $IS_HYBRID; then
     apt-get install -y python3 python3-pip
-    pip3 install envycontrol --break-system-packages 2>/dev/null || pip3 install envycontrol
-    success "envycontrol installiert (sudo envycontrol -s hybrid|nvidia|integrated)"
+    pip3 install envycontrol --break-system-packages 2>/dev/null || \
+        pip3 install envycontrol 2>/dev/null || \
+        warn "envycontrol nicht installierbar — manuell: pip3 install envycontrol"
+    command -v envycontrol &>/dev/null && \
+        success "envycontrol installiert (sudo envycontrol -s hybrid|nvidia|integrated)" || true
 fi
 
 if ! $HAS_NVIDIA && ! $HAS_AMD; then
@@ -201,6 +204,7 @@ apt-get remove --purge -y firefox-esr 2>/dev/null || true
 
 BRAVE_CONFIG_DIR="$TARGET_HOME/.config/BraveSoftware/Brave-Browser/Default"
 mkdir -p "$BRAVE_CONFIG_DIR"
+if [[ ! -f "$BRAVE_CONFIG_DIR/Preferences" ]]; then
 cat > "$BRAVE_CONFIG_DIR/Preferences" << 'EOF'
 {
   "browser": {
@@ -227,6 +231,7 @@ cat > "$BRAVE_CONFIG_DIR/Preferences" << 'EOF'
 }
 EOF
 chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/BraveSoftware"
+fi
 success "Brave Browser installiert"
 
 # ============================================================
@@ -315,11 +320,13 @@ mkdir -p \
     "$TARGET_HOME/Pictures/wallpapers"
 
 # Sway
-cp "$SCRIPT_DIR/configs/sway/config"       "$CONFIG_DIR/sway/config"
-cp "$SCRIPT_DIR/configs/sway/wallpaper.sh" "$CONFIG_DIR/sway/wallpaper.sh"
-cp "$SCRIPT_DIR/configs/sway/powermenu.sh" "$CONFIG_DIR/sway/powermenu.sh"
+cp "$SCRIPT_DIR/configs/sway/config"        "$CONFIG_DIR/sway/config"
+cp "$SCRIPT_DIR/configs/sway/wallpaper.sh"  "$CONFIG_DIR/sway/wallpaper.sh"
+cp "$SCRIPT_DIR/configs/sway/powermenu.sh"  "$CONFIG_DIR/sway/powermenu.sh"
+cp "$SCRIPT_DIR/configs/sway/waybar-start.sh" "$CONFIG_DIR/sway/waybar-start.sh"
 chmod +x "$CONFIG_DIR/sway/wallpaper.sh"
 chmod +x "$CONFIG_DIR/sway/powermenu.sh"
+chmod +x "$CONFIG_DIR/sway/waybar-start.sh"
 
 # Waybar
 cp "$SCRIPT_DIR/configs/waybar/config"    "$CONFIG_DIR/waybar/config"
@@ -394,16 +401,17 @@ EOF
 
 success "xdg-desktop-portal-wlr installiert"
 
-# Wayland/Qt Umgebungsvariablen
-cat > /etc/environment << 'EOF'
-MOZ_ENABLE_WAYLAND=1
-QT_QPA_PLATFORM=wayland;xcb
-QT_QPA_PLATFORMTHEME=gtk3
-GDK_BACKEND=wayland,x11
-XDG_CURRENT_DESKTOP=sway
-XDG_SESSION_TYPE=wayland
-CLUTTER_BACKEND=wayland
+# Wayland/Qt Umgebungsvariablen (via profile.d — überschreibt keine bestehenden Einträge)
+cat > /etc/profile.d/snowfox-env.sh << 'EOF'
+export MOZ_ENABLE_WAYLAND=1
+export QT_QPA_PLATFORM=wayland;xcb
+export QT_QPA_PLATFORMTHEME=gtk3
+export GDK_BACKEND=wayland,x11
+export XDG_CURRENT_DESKTOP=sway
+export XDG_SESSION_TYPE=wayland
+export CLUTTER_BACKEND=wayland
 EOF
+chmod +x /etc/profile.d/snowfox-env.sh
 
 # SnowFox Logo als System-Icon installieren
 ASSET="$SCRIPT_DIR/assets/fuchs.png"
