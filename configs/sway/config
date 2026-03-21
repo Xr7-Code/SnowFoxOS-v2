@@ -51,10 +51,8 @@ smart_gaps on
 smart_borders on
 
 # ── Waybar ──────────────────────────────────────────────────
-# Kein bar{} — Waybar wird per exec verzögert gestartet
-# damit NetworkManager beim Systemstart bereit ist
+# Verzögert starten damit NetworkManager beim Boot bereit ist
 exec bash -c "sleep 5 && waybar"
-exec_always bash -c "pgrep -x waybar || waybar"
 
 # ── Autostart ───────────────────────────────────────────────
 exec dunst
