@@ -87,7 +87,7 @@ bindsym $mod+Return exec $term
 bindsym $mod+Space exec $menu
 
 # Browser
-bindsym $mod+b exec firefox-esr
+bindsym $mod+b exec brave-browser
 
 # Dateimanager
 bindsym $mod+e exec thunar
