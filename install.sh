@@ -43,7 +43,7 @@ sleep 1
 # ============================================================
 # SCHRITT 1 — System aktualisieren
 # ============================================================
-step "1/9 — System aktualisieren"
+step "1/8 — System aktualisieren"
 
 apt-get update -qq
 apt-get upgrade -y
@@ -65,7 +65,7 @@ success "System aktualisiert"
 # ============================================================
 # SCHRITT 2 — GPU-Erkennung & Treiber
 # ============================================================
-step "2/9 — GPU-Erkennung & Treiber"
+step "2/8 — GPU-Erkennung & Treiber"
 
 GPU_INFO=$(lspci | grep -iE 'vga|3d|display')
 HAS_NVIDIA=false
@@ -106,7 +106,7 @@ fi
 # ============================================================
 # SCHRITT 3 — Sway & Wayland Desktop
 # ============================================================
-step "3/9 — Sway + Waybar + Wofi + Dunst + Swaylock"
+step "3/8 — Sway + Waybar + Wofi + Dunst + Swaylock"
 
 apt-get install -y \
     sway \
@@ -155,7 +155,7 @@ success "Sway Autostart eingerichtet"
 # ============================================================
 # SCHRITT 4 — Audio (PipeWire)
 # ============================================================
-step "4/9 — Audio (PipeWire)"
+step "4/8 — Audio (PipeWire)"
 
 apt-get install -y \
     pipewire \
@@ -172,7 +172,7 @@ success "PipeWire installiert"
 # ============================================================
 # SCHRITT 5 — Terminal & Apps
 # ============================================================
-step "5/9 — Terminal & Standard-Apps"
+step "5/8 — Terminal & Standard-Apps"
 
 apt-get install -y \
     kitty \
@@ -190,7 +190,7 @@ success "Terminal (Kitty) & Apps installiert"
 # ============================================================
 # SCHRITT 6 — Browser (Brave)
 # ============================================================
-step "6/9 — Brave Browser"
+step "6/8 — Brave Browser"
 
 curl -fsS https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
     | tee /usr/share/keyrings/brave-browser-archive-keyring.gpg > /dev/null
@@ -235,32 +235,9 @@ fi
 success "Brave Browser installiert"
 
 # ============================================================
-# SCHRITT 7 — Wine
+# SCHRITT 7 — zram & Optimierung
 # ============================================================
-step "7/9 — Wine (.exe Kompatibilität)"
-
-dpkg --add-architecture i386
-apt-get update -qq
-apt-get install -y wine wine32 wine64 2>/dev/null || \
-    apt-get install -y wine 2>/dev/null || \
-    warn "Wine nicht installierbar — manuell: apt install wine"
-
-cat > /usr/share/applications/wine-open.desktop << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=Mit Wine öffnen
-Exec=wine %f
-MimeType=application/x-ms-dos-executable;application/x-msi;
-NoDisplay=false
-Icon=wine
-EOF
-
-success "Wine installiert"
-
-# ============================================================
-# SCHRITT 8 — zram & Optimierung
-# ============================================================
-step "8/9 — zram & Optimierung"
+step "7/8 — zram & Optimierung"
 
 apt-get install -y zram-tools
 
@@ -271,6 +248,11 @@ PRIORITY=100
 EOF
 
 systemctl enable zramswap
+
+# RAM bevorzugen, spät auf zram ausweichen
+cat > /etc/sysctl.d/99-snowfox.conf << 'EOF'
+vm.swappiness=10
+EOF
 
 info "Unnötige Dienste deaktivieren..."
 for svc in avahi-daemon cups cups-browsed ModemManager e2scrub_reap bluetooth; do
@@ -302,9 +284,9 @@ systemctl enable NetworkManager
 success "zram + Optimierungen fertig"
 
 # ============================================================
-# SCHRITT 9 — Konfiguration, Icons & Darkmode
+# SCHRITT 8 — Konfiguration, Icons & Darkmode
 # ============================================================
-step "9/9 — Konfiguration, Icons & Darkmode"
+step "8/8 — Konfiguration, Icons & Darkmode"
 
 CONFIG_DIR="$TARGET_HOME/.config"
 mkdir -p \
@@ -491,6 +473,7 @@ echo -e "${GRAY}  GPU:        ${BOLD}$(
     echo "Intel/andere"
 )${RESET}"
 echo -e "${GRAY}  zram:       ${BOLD}aktiv (lz4, 50%)${RESET}"
+echo -e "${GRAY}  swappiness: ${BOLD}10 (RAM-bevorzugend)${RESET}"
 echo -e "${GRAY}  Login:      ${BOLD}TTY1 → Passwort → Sway${RESET}"
 echo ""
 echo -e "${ORANGE}${BOLD}  Shortcuts:${RESET}"
