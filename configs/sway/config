@@ -50,9 +50,9 @@ gaps outer 4
 smart_gaps on
 smart_borders on
 
-# ── Waybar — verzögert starten damit NetworkManager bereit ist
+# ── Waybar ──────────────────────────────────────────────────
 bar {
-    swaybar_command bash -c "sleep 3 && waybar"
+    swaybar_command waybar
 }
 
 # ── Autostart ───────────────────────────────────────────────
@@ -61,7 +61,6 @@ exec nm-applet --indicator
 exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 2>/dev/null || \
      /usr/lib/x86_64-linux-gnu/libexec/polkit-kde-authentication-agent-1 2>/dev/null || true
 
-# Swayidle — Sperre nach 5 Min, Bildschirm aus nach 10 Min
 exec swayidle -w \
     timeout 300  'swaylock -f' \
     timeout 600  'swaymsg "output * dpms off"' \
@@ -70,50 +69,30 @@ exec swayidle -w \
 
 # ── Keyboard Shortcuts ──────────────────────────────────────
 
-# Terminal
 bindsym $mod+Return exec $term
-
-# App-Launcher (Toggle)
 bindsym $mod+Space exec pkill wofi || wofi --show drun --prompt "Suchen..."
-
-# Browser
 bindsym $mod+b exec brave-browser
-
-# Dateimanager
 bindsym $mod+e exec thunar
-
-# Bildschirmsperre
 bindsym $mod+l exec swaylock -f
 
-# Screenshot — ganzer Bildschirm
 bindsym Print exec grim ~/Pictures/screenshot_$(date +%Y%m%d_%H%M%S).png && \
     notify-send "Screenshot" "Gespeichert in ~/Pictures"
-
-# Screenshot — Auswahl
 bindsym $mod+Print exec grim -g "$(slurp)" ~/Pictures/screenshot_$(date +%Y%m%d_%H%M%S).png && \
     notify-send "Screenshot" "Ausschnitt gespeichert"
 
-# Lautstärke
 bindsym XF86AudioRaiseVolume  exec pactl set-sink-volume @DEFAULT_SINK@ +5%
 bindsym XF86AudioLowerVolume  exec pactl set-sink-volume @DEFAULT_SINK@ -5%
 bindsym XF86AudioMute         exec pactl set-sink-mute @DEFAULT_SINK@ toggle
 
-# Helligkeit
 bindsym XF86MonBrightnessUp   exec brightnessctl set +5%
 bindsym XF86MonBrightnessDown exec brightnessctl set 5%-
 
-# Media
 bindsym XF86AudioPlay  exec playerctl play-pause
 bindsym XF86AudioNext  exec playerctl next
 bindsym XF86AudioPrev  exec playerctl previous
 
-# Fenster schließen
 bindsym $mod+q kill
-
-# Sway neu laden
 bindsym $mod+Shift+r reload
-
-# Power Menü
 bindsym $mod+Shift+e exec ~/.config/sway/powermenu.sh
 
 # ── Fensterverwaltung ───────────────────────────────────────
