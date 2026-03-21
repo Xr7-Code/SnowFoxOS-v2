@@ -2,14 +2,8 @@
 #  SnowFoxOS v2.0 — Sway Konfiguration
 # ============================================================
 
-# Modifier: Super-Taste (Windows-Taste)
 set $mod Mod4
-
-# Terminal
 set $term kitty
-
-# App-Launcher
-set $menu wofi --show drun --prompt "Suchen..."
 
 # ── Farben ──────────────────────────────────────────────────
 set $purple  #9B59B6
@@ -25,8 +19,6 @@ font pango:Inter 10
 
 # ── Ausgabe / Monitor ───────────────────────────────────────
 output * bg #0f0f0f solid_color
-
-# Wallpaper wird per exec gesetzt falls vorhanden
 exec_always ~/.config/sway/wallpaper.sh
 
 # ── Eingabe ─────────────────────────────────────────────────
@@ -45,7 +37,6 @@ input type:touchpad {
 }
 
 # ── Fenster-Dekoration ──────────────────────────────────────
-# client.focused          border    background  text    indicator  child_border
 client.focused            $purple   $bg2        $fg     $orange    $purple
 client.focused_inactive   $gray     $bg         $fg     $gray      $gray
 client.unfocused          $inactive $bg         $fg     $inactive  $inactive
@@ -59,19 +50,18 @@ gaps outer 4
 smart_gaps on
 smart_borders on
 
-# ── Waybar starten ──────────────────────────────────────────
+# ── Waybar — verzögert starten damit NetworkManager bereit ist
 bar {
-    swaybar_command waybar
+    swaybar_command bash -c "sleep 3 && waybar"
 }
 
 # ── Autostart ───────────────────────────────────────────────
 exec dunst
 exec nm-applet --indicator
-exec blueman-applet
 exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 2>/dev/null || \
      /usr/lib/x86_64-linux-gnu/libexec/polkit-kde-authentication-agent-1 2>/dev/null || true
 
-# Swayidle — Bildschirmsperre nach 5 Minuten, Bildschirm aus nach 10
+# Swayidle — Sperre nach 5 Min, Bildschirm aus nach 10 Min
 exec swayidle -w \
     timeout 300  'swaylock -f' \
     timeout 600  'swaymsg "output * dpms off"' \
@@ -83,7 +73,7 @@ exec swayidle -w \
 # Terminal
 bindsym $mod+Return exec $term
 
-# App-Launcher
+# App-Launcher (Toggle)
 bindsym $mod+Space exec pkill wofi || wofi --show drun --prompt "Suchen..."
 
 # Browser
@@ -127,20 +117,16 @@ bindsym $mod+Shift+r reload
 bindsym $mod+Shift+e exec ~/.config/sway/powermenu.sh
 
 # ── Fensterverwaltung ───────────────────────────────────────
-
-# Fokus bewegen
 bindsym $mod+Left  focus left
 bindsym $mod+Right focus right
 bindsym $mod+Up    focus up
 bindsym $mod+Down  focus down
 
-# Fenster verschieben
 bindsym $mod+Shift+Left  move left
 bindsym $mod+Shift+Right move right
 bindsym $mod+Shift+Up    move up
 bindsym $mod+Shift+Down  move down
 
-# Layout
 bindsym $mod+h split h
 bindsym $mod+v split v
 bindsym $mod+f fullscreen toggle
@@ -148,7 +134,6 @@ bindsym $mod+s layout stacking
 bindsym $mod+w layout tabbed
 bindsym $mod+t layout toggle split
 
-# Floating
 bindsym $mod+Shift+space floating toggle
 bindsym $mod+d focus mode_toggle
 floating_modifier $mod normal
@@ -173,13 +158,13 @@ bindsym $mod+Shift+4 move container to workspace $ws4
 bindsym $mod+Shift+5 move container to workspace $ws5
 
 # ── Floating Regeln ─────────────────────────────────────────
-for_window [app_id="pavucontrol"]    floating enable, resize set 600 400
-for_window [app_id="blueman-manager"] floating enable, resize set 600 500
+for_window [app_id="pavucontrol"]          floating enable, resize set 600 400
+for_window [app_id="blueman-manager"]      floating enable, resize set 600 500
 for_window [app_id="nm-connection-editor"] floating enable
-for_window [title="Einstellungen"]   floating enable
-for_window [window_role="dialog"]    floating enable
-for_window [window_role="pop-up"]    floating enable
-for_window [window_type="dialog"]    floating enable
+for_window [title="Einstellungen"]         floating enable
+for_window [window_role="dialog"]          floating enable
+for_window [window_role="pop-up"]          floating enable
+for_window [window_type="dialog"]          floating enable
 
 # ── Größe ändern ────────────────────────────────────────────
 mode "resize" {
@@ -191,7 +176,3 @@ mode "resize" {
     bindsym Escape mode "default"
 }
 bindsym $mod+r mode "resize"
-
-# ── Nvidia Wayland Fix ──────────────────────────────────────
-# Wird automatisch gesetzt wenn Nvidia erkannt wird
-# (durch install.sh in /etc/environment)
