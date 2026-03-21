@@ -35,9 +35,21 @@ SnowFoxOS is a one-script installer that transforms a minimal Debian 12 installa
 - **GPU auto-detection** — installs the right drivers for AMD, Nvidia, or hybrid setups automatically
 - **Dark mode** — GTK3 + GTK4 Adwaita-dark out of the box
 
-![btop](assets/screenshots/btop.png)
-
 ![Wofi App Launcher](assets/screenshots/wofi.png)
+
+---
+
+## Performance
+
+SnowFoxOS is tuned to stay out of the way and use as little resources as possible.
+
+- zram with lz4 compression replaces traditional swap — faster and RAM-efficient
+- `vm.swappiness=10` keeps data in RAM as long as possible
+- Unnecessary system services are disabled on install (cups, avahi, ModemManager, and more)
+- No display manager — Sway starts directly from TTY1
+- Boot to desktop in under 2 seconds
+
+![btop](assets/screenshots/btop.png)
 
 ---
 
