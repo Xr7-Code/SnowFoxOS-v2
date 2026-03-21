@@ -51,8 +51,8 @@ smart_gaps on
 smart_borders on
 
 # ── Waybar ──────────────────────────────────────────────────
-# Verzögert starten damit NetworkManager beim Boot bereit ist
-exec bash -c "sleep 5 && waybar"
+# Startet erst wenn NetworkManager bereit ist (kein blindes sleep)
+exec ~/.config/sway/waybar-start.sh
 
 # ── Autostart ───────────────────────────────────────────────
 exec dunst
