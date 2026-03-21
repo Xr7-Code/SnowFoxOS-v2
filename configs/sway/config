@@ -50,11 +50,11 @@ gaps outer 4
 smart_gaps on
 smart_borders on
 
-# ── Waybar ──────────────────────────────────────────────────
-# Startet erst wenn NetworkManager bereit ist (kein blindes sleep)
-exec ~/.config/sway/waybar-start.sh
-
 # ── Autostart ───────────────────────────────────────────────
+# Umgebungsvariablen in systemd importieren — muss als erstes passieren
+# damit xdg-desktop-portal-wlr WAYLAND_DISPLAY kennt und nicht 25s timeouted
+exec systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP SWAYSOCK
+
 exec dunst
 exec nm-applet --indicator
 exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 2>/dev/null || \
@@ -65,6 +65,9 @@ exec swayidle -w \
     timeout 600  'swaymsg "output * dpms off"' \
     resume       'swaymsg "output * dpms on"' \
     before-sleep 'swaylock -f'
+
+# ── Waybar ──────────────────────────────────────────────────
+exec waybar
 
 # ── Keyboard Shortcuts ──────────────────────────────────────
 bindsym $mod+Return exec $term
