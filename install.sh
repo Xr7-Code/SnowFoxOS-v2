@@ -24,12 +24,10 @@ step()    { echo -e "\n${PURPLE}${BOLD}━━━━━━━━━━━━━�
             echo -e "${PURPLE}${BOLD}  $1${RESET}";
             echo -e "${PURPLE}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n"; }
 
-# Root-Check
 if [[ $EUID -ne 0 ]]; then
     error "Bitte mit sudo ausführen: sudo ./install.sh"
 fi
 
-# Ziel-User ermitteln
 TARGET_USER="${SUDO_USER:-$(logname 2>/dev/null || echo '')}"
 if [[ -z "$TARGET_USER" || "$TARGET_USER" == "root" ]]; then
     read -rp "Benutzername: " TARGET_USER
@@ -201,7 +199,6 @@ apt-get update -qq
 apt-get install -y brave-browser
 apt-get remove --purge -y firefox-esr 2>/dev/null || true
 
-# Brave Preferences vorsetzen
 BRAVE_CONFIG_DIR="$TARGET_HOME/.config/BraveSoftware/Brave-Browser/Default"
 mkdir -p "$BRAVE_CONFIG_DIR"
 cat > "$BRAVE_CONFIG_DIR/Preferences" << 'EOF'
@@ -230,7 +227,6 @@ cat > "$BRAVE_CONFIG_DIR/Preferences" << 'EOF'
 }
 EOF
 chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/BraveSoftware"
-
 success "Brave Browser installiert"
 
 # ============================================================
@@ -272,10 +268,18 @@ EOF
 systemctl enable zramswap
 
 info "Unnötige Dienste deaktivieren..."
-for svc in avahi-daemon cups cups-browsed ModemManager e2scrub_reap; do
+for svc in avahi-daemon cups cups-browsed ModemManager e2scrub_reap bluetooth; do
     systemctl disable "$svc" 2>/dev/null && info "  Deaktiviert: $svc" || true
 done
 systemctl mask NetworkManager-wait-online.service 2>/dev/null || true
+
+# Unnötige User-Dienste deaktivieren
+sudo -u "$TARGET_USER" systemctl --user disable \
+    at-spi-dbus-bus.service \
+    gnome-keyring-daemon.service \
+    obex.service \
+    xdg-document-portal.service \
+    xdg-permission-store.service 2>/dev/null || true
 
 mkdir -p /etc/NetworkManager/conf.d
 cat > /etc/NetworkManager/conf.d/snowfox.conf << 'EOF'
@@ -310,30 +314,29 @@ mkdir -p \
     "$CONFIG_DIR/xdg-desktop-portal" \
     "$TARGET_HOME/Pictures/wallpapers"
 
-# ── Sway ────────────────────────────────────────────────────
+# Sway
 cp "$SCRIPT_DIR/configs/sway/config"       "$CONFIG_DIR/sway/config"
 cp "$SCRIPT_DIR/configs/sway/wallpaper.sh" "$CONFIG_DIR/sway/wallpaper.sh"
 cp "$SCRIPT_DIR/configs/sway/powermenu.sh" "$CONFIG_DIR/sway/powermenu.sh"
 chmod +x "$CONFIG_DIR/sway/wallpaper.sh"
 chmod +x "$CONFIG_DIR/sway/powermenu.sh"
 
-# ── Waybar ──────────────────────────────────────────────────
+# Waybar
 cp "$SCRIPT_DIR/configs/waybar/config"    "$CONFIG_DIR/waybar/config"
 cp "$SCRIPT_DIR/configs/waybar/style.css" "$CONFIG_DIR/waybar/style.css"
 
-# ── Wofi ────────────────────────────────────────────────────
+# Wofi
 cp "$SCRIPT_DIR/configs/wofi/config"    "$CONFIG_DIR/wofi/config"
 cp "$SCRIPT_DIR/configs/wofi/style.css" "$CONFIG_DIR/wofi/style.css"
 
-# ── Dunst ───────────────────────────────────────────────────
+# Dunst
 cp "$SCRIPT_DIR/configs/dunst/dunstrc" "$CONFIG_DIR/dunst/dunstrc"
 
-# ── Swaylock ────────────────────────────────────────────────
+# Swaylock
 cp "$SCRIPT_DIR/configs/swaylock/config" "$CONFIG_DIR/swaylock/config"
 
-# ── Kitty ───────────────────────────────────────────────────
+# Kitty
 cat > "$CONFIG_DIR/kitty/kitty.conf" << 'EOF'
-# SnowFoxOS — Kitty Terminal
 font_family       Noto Mono
 font_size         11.0
 cursor            #9B59B6
@@ -361,7 +364,7 @@ hide_window_decorations yes
 confirm_os_window_close 0
 EOF
 
-# ── GTK Darkmode ────────────────────────────────────────────
+# GTK Darkmode
 cat > "$CONFIG_DIR/gtk-3.0/settings.ini" << 'EOF'
 [Settings]
 gtk-application-prefer-dark-theme=1
@@ -377,7 +380,7 @@ cat > "$CONFIG_DIR/gtk-4.0/settings.ini" << 'EOF'
 gtk-application-prefer-dark-theme=1
 EOF
 
-# ── xdg-desktop-portal (wlr, kein gtk) ─────────────────────
+# xdg-desktop-portal-wlr (kein gtk — verhindert Timeouts)
 apt-get install -y xdg-desktop-portal xdg-desktop-portal-wlr
 apt-get remove --purge -y xdg-desktop-portal-gtk 2>/dev/null || true
 
@@ -391,7 +394,7 @@ EOF
 
 success "xdg-desktop-portal-wlr installiert"
 
-# ── Wayland/Qt Umgebungsvariablen ───────────────────────────
+# Wayland/Qt Umgebungsvariablen
 cat > /etc/environment << 'EOF'
 MOZ_ENABLE_WAYLAND=1
 QT_QPA_PLATFORM=wayland;xcb
@@ -402,7 +405,7 @@ XDG_SESSION_TYPE=wayland
 CLUTTER_BACKEND=wayland
 EOF
 
-# ── SnowFox Logo als System-Icon installieren ───────────────
+# SnowFox Logo als System-Icon installieren
 ASSET="$SCRIPT_DIR/assets/fuchs.png"
 if [[ -f "$ASSET" ]]; then
     info "SnowFox Logo wird installiert..."
@@ -417,63 +420,7 @@ else
     warn "assets/fuchs.png nicht gefunden — Icon wird übersprungen"
 fi
 
-# ── Plymouth Bootscreen ─────────────────────────────────────
-ASSET="$SCRIPT_DIR/assets/fuchs.png"
-if [[ -f "$ASSET" ]]; then
-    info "Plymouth Bootscreen wird eingerichtet..."
-    apt-get install -y plymouth plymouth-themes 2>/dev/null || true
-
-    PLYMOUTH_DIR="/usr/share/plymouth/themes/snowfox"
-    mkdir -p "$PLYMOUTH_DIR"
-
-    # Logo für Plymouth skalieren
-    convert "$ASSET" -resize 200x200 "$PLYMOUTH_DIR/logo.png" 2>/dev/null || \
-        cp "$ASSET" "$PLYMOUTH_DIR/logo.png"
-
-    cat > "$PLYMOUTH_DIR/snowfox.plymouth" << 'EOF'
-[Plymouth Theme]
-Name=SnowFoxOS
-Description=SnowFoxOS Boot Theme
-ModuleName=script
-
-[script]
-ImageDir=/usr/share/plymouth/themes/snowfox
-ScriptFile=/usr/share/plymouth/themes/snowfox/snowfox.script
-EOF
-
-    cat > "$PLYMOUTH_DIR/snowfox.script" << 'EOF'
-bg = Image("background.png");
-if (bg)
-    bg_sprite = Sprite(bg);
-else {
-    bg_sprite = Sprite();
-    bg_sprite.SetImage(Image.Fill(Window.GetWidth(), Window.GetHeight(), 0.06, 0.06, 0.06, 1));
-}
-
-logo = Image("logo.png");
-logo_sprite = Sprite(logo);
-logo_sprite.SetX(Window.GetWidth() / 2 - logo.GetWidth() / 2);
-logo_sprite.SetY(Window.GetHeight() / 2 - logo.GetHeight() / 2 - 40);
-
-message_sprite = Sprite();
-message_sprite.SetPosition(Window.GetWidth() / 2 - 100, Window.GetHeight() / 2 + 100, 10);
-EOF
-
-    # Dunkler Hintergrund für Plymouth
-    convert -size 1920x1080 xc:"#0f0f0f" "$PLYMOUTH_DIR/background.png" 2>/dev/null || true
-
-    update-alternatives --install /usr/share/plymouth/themes/default.plymouth \
-        default.plymouth "$PLYMOUTH_DIR/snowfox.plymouth" 100 2>/dev/null || true
-    update-alternatives --set default.plymouth \
-        "$PLYMOUTH_DIR/snowfox.plymouth" 2>/dev/null || true
-
-    update-initramfs -u 2>/dev/null || true
-    success "Plymouth Bootscreen eingerichtet"
-else
-    warn "assets/fuchs.png nicht gefunden — Plymouth wird übersprungen"
-fi
-
-# ── Wallpaper ───────────────────────────────────────────────
+# Wallpaper kopieren
 if [ -d "$SCRIPT_DIR/wallpapers" ] && [ "$(ls -A "$SCRIPT_DIR/wallpapers" 2>/dev/null)" ]; then
     cp "$SCRIPT_DIR/wallpapers"/* "$TARGET_HOME/Pictures/wallpapers/"
     success "Wallpapers kopiert"
@@ -481,7 +428,16 @@ else
     warn "Kein Wallpaper gefunden — dunkle Hintergrundfarbe aktiv"
 fi
 
-# ── snowfox-lite ────────────────────────────────────────────
+# Autostart-Bloat deaktivieren
+mkdir -p "$CONFIG_DIR/autostart"
+for desktop in blueman-applet gnome-keyring-secrets gnome-keyring-pkcs11; do
+    if [[ -f "/etc/xdg/autostart/${desktop}.desktop" ]]; then
+        cp "/etc/xdg/autostart/${desktop}.desktop" "$CONFIG_DIR/autostart/"
+        echo "Hidden=true" >> "$CONFIG_DIR/autostart/${desktop}.desktop"
+    fi
+done
+
+# snowfox-lite
 cat > /usr/local/bin/snowfox-lite << 'EOF'
 #!/bin/bash
 case "$1" in
@@ -498,7 +454,7 @@ esac
 EOF
 chmod +x /usr/local/bin/snowfox-lite
 
-# ── Berechtigungen ──────────────────────────────────────────
+# Berechtigungen
 chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config"
 chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/Pictures"
 
