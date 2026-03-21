@@ -323,10 +323,8 @@ mkdir -p \
 cp "$SCRIPT_DIR/configs/sway/config"        "$CONFIG_DIR/sway/config"
 cp "$SCRIPT_DIR/configs/sway/wallpaper.sh"  "$CONFIG_DIR/sway/wallpaper.sh"
 cp "$SCRIPT_DIR/configs/sway/powermenu.sh"  "$CONFIG_DIR/sway/powermenu.sh"
-cp "$SCRIPT_DIR/configs/sway/waybar-start.sh" "$CONFIG_DIR/sway/waybar-start.sh"
 chmod +x "$CONFIG_DIR/sway/wallpaper.sh"
 chmod +x "$CONFIG_DIR/sway/powermenu.sh"
-chmod +x "$CONFIG_DIR/sway/waybar-start.sh"
 
 # Waybar
 cp "$SCRIPT_DIR/configs/waybar/config"    "$CONFIG_DIR/waybar/config"
