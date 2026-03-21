@@ -84,7 +84,7 @@ exec swayidle -w \
 bindsym $mod+Return exec $term
 
 # App-Launcher
-bindsym $mod+Space exec $menu
+bindsym $mod+Space exec pkill wofi || wofi --show drun --prompt "Suchen..."
 
 # Browser
 bindsym $mod+b exec brave-browser
