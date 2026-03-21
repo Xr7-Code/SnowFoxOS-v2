@@ -51,9 +51,9 @@ smart_gaps on
 smart_borders on
 
 # ── Waybar ──────────────────────────────────────────────────
-bar {
-    swaybar_command waybar
-}
+# bar {
+#     swaybar_command waybar
+# }
 
 # ── Autostart ───────────────────────────────────────────────
 exec dunst
@@ -66,6 +66,8 @@ exec swayidle -w \
     timeout 600  'swaymsg "output * dpms off"' \
     resume       'swaymsg "output * dpms on"' \
     before-sleep 'swaylock -f'
+
+exec_always bash -c "pkill -x waybar; sleep 4 && waybar"
 
 # ── Keyboard Shortcuts ──────────────────────────────────────
 
