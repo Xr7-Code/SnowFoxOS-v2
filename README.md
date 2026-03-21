@@ -2,7 +2,11 @@
 
 <img src="assets/fuchs.png" width="120" alt="SnowFox Logo"/>
 
+</div>
+
 # SnowFoxOS v2.0
+
+<div align="center">
 
 **A minimal, fast Wayland desktop built on Debian 12**
 
@@ -35,8 +39,6 @@ SnowFoxOS is a one-script installer that transforms a minimal Debian 12 installa
 - **GPU auto-detection** — installs the right drivers for AMD, Nvidia, or hybrid setups automatically
 - **Dark mode** — GTK3 + GTK4 Adwaita-dark out of the box
 
-![Wofi App Launcher](assets/screenshots/wofi.png)
-
 ---
 
 ## Performance
@@ -50,6 +52,8 @@ SnowFoxOS is tuned to stay out of the way and use as little resources as possibl
 - Boot to desktop in under 2 seconds
 
 ![btop](assets/screenshots/btop.png)
+
+![Wofi App Launcher](assets/screenshots/wofi.png)
 
 ---
 
@@ -102,6 +106,20 @@ After reboot, log in at TTY1 — Sway starts automatically.
 
 ---
 
+## Screenshots
+
+Screenshots were taken with `grim` — already included in the installation.
+
+```bash
+# Full screenshot
+grim ~/Pictures/screenshot.png
+
+# Area selection
+grim -g "$(slurp)" ~/Pictures/screenshot.png
+```
+
+---
+
 <div align="center">
-<sub>Built from Xr7-Code on Debian 12</sub>
+<sub>Built by Xr7-Code on Debian 12</sub>
 </div>
