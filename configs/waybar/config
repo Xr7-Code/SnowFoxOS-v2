@@ -100,7 +100,7 @@
         "format-disconnected": " Getrennt",
         "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}",
         "tooltip-format-ethernet": "{ipaddr}",
-        "on-click": "kitty --title nmtui nmtui"
+        "on-click": "~/.config/sway/snowfox-network.sh"
     },
 
     "pulseaudio": {
