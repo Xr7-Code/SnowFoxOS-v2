@@ -56,7 +56,6 @@ smart_borders on
 exec systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP SWAYSOCK
 
 exec dunst
-exec nm-applet --indicator
 exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 2>/dev/null || \
      /usr/lib/x86_64-linux-gnu/libexec/polkit-kde-authentication-agent-1 2>/dev/null || true
 
@@ -75,6 +74,7 @@ bindsym $mod+Space exec pkill wofi || wofi --show drun --prompt "Suchen..."
 bindsym $mod+b exec brave-browser
 bindsym $mod+e exec thunar
 bindsym $mod+l exec swaylock -f
+bindsym $mod+n exec ~/.config/sway/snowfox-network.sh
 
 bindsym Print exec grim ~/Pictures/screenshot_$(date +%Y%m%d_%H%M%S).png && \
     notify-send "Screenshot" "Gespeichert in ~/Pictures"
