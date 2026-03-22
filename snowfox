@@ -409,7 +409,7 @@ Sei direkt, klar und menschlich — kein unnötiges Geschwätz.'
 cmd_ai() {
     if ! command -v ollama &>/dev/null; then
         err "Ollama nicht gefunden."
-        info "Installieren: curl -fsSL https://ollama.ai/install.sh | sh"
+        info "Installieren: curl -fsSL https://ollama.com/install.sh | sh"
         info "Dann: ollama pull llama3.2"
         exit 1
     fi
