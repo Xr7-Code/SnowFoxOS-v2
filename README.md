@@ -26,6 +26,22 @@ SnowFoxOS is a one-script installer that transforms a minimal Debian 12 installa
 
 ---
 
+## Philosophy
+
+Most operating systems treat you as a product. They collect your data, slow down your hardware with every update, and lock you into ecosystems you never agreed to.
+
+SnowFoxOS is built on a different belief:
+
+> *Your computer belongs to you. Not to Microsoft. Not to anyone else.*
+> *No telemetry. No ads. No subscriptions. No one is watching.*
+> *You are not a product. You are not data. You are a person.*
+>
+> — Alexander Valentin Ludwig
+
+This system is for people who want their hardware back. It runs well on machines that Windows has abandoned. It does not phone home. It does not get slower with updates. It does not sell your attention.
+
+---
+
 ## Features
 
 - **Sway** — tiling Wayland compositor with smart gaps and per-window floating rules
@@ -39,6 +55,8 @@ SnowFoxOS is a one-script installer that transforms a minimal Debian 12 installa
 - **GPU auto-detection** — installs the right drivers for AMD, Nvidia, or hybrid setups automatically
 - **Dark mode** — GTK3 + GTK4 Adwaita-dark out of the box
 
+![Wofi App Launcher](assets/screenshots/wofi.png)
+
 ---
 
 ## Performance
@@ -49,11 +67,42 @@ SnowFoxOS is tuned to stay out of the way and use as little resources as possibl
 - `vm.swappiness=10` keeps data in RAM as long as possible
 - Unnecessary system services are disabled on install (cups, avahi, ModemManager, and more)
 - No display manager — Sway starts directly from TTY1
-- Boot to desktop in under 2 seconds
+- Idle RAM usage with only a terminal open: ~870MB on 8GB hardware
 
 ![btop](assets/screenshots/btop.png)
 
-![Wofi App Launcher](assets/screenshots/wofi.png)
+---
+
+## snowfox CLI
+
+SnowFoxOS comes with a built-in command line tool called `snowfox` — a control center for your system.
+
+| Command | Description |
+|---|---|
+| `snowfox status` | RAM, disk, uptime, GPU mode, mic/cam status |
+| `snowfox update` | System update with SnowFox branding |
+| `snowfox gpu` | Switch GPU mode (hybrid systems) |
+| `snowfox audit` | Show all active network connections |
+| `snowfox airmode on/off` | Kill all wireless — WiFi, Bluetooth, everything |
+| `snowfox kill mic/cam/all` | Disable hardware at kernel level |
+| `snowfox download <URL>` | Download video or audio from 1000+ sites |
+| `snowfox stream <URL>` | Stream directly in mpv — no browser, no tracking |
+| `snowfox pass` | Local encrypted password manager |
+| `snowfox tip` | Random security tip — digital and real life |
+| `snowfox ai` | Offline AI that knows your system |
+| `snowfox help` | Show all commands |
+
+### Why `snowfox stream`?
+
+You could open YouTube in a browser. But every time you do, Google tracks what you watch, how long, and what you do next. The algorithm is designed to keep you watching.
+
+`snowfox stream` plays any URL directly in mpv — no JavaScript, no tracking, no recommendations, no autoplay. Just the video. It works with YouTube, Twitch, SoundCloud, Vimeo, TikTok, and over 1000 other sites.
+
+Your attention belongs to you.
+
+### Offline AI
+
+SnowFoxOS includes an optional offline AI powered by Ollama and llama3.2. It runs entirely on your machine — no cloud, no data leaving your device. It knows SnowFoxOS: your shortcuts, your tools, your commands. Ask it anything about your system, or just talk.
 
 ---
 
@@ -82,6 +131,8 @@ After reboot, log in at TTY1 — Sway starts automatically.
 | `Super + E` | File manager (Thunar) |
 | `Super + L` | Lock screen |
 | `Super + Q` | Close window |
+| `Super + F` | Toggle fullscreen |
+| `Super + Shift + 1-5` | Move window to workspace |
 | `Super + Shift + E` | Power menu |
 | `Super + Shift + R` | Reload Sway config |
 | `Print` | Screenshot |
@@ -103,6 +154,8 @@ After reboot, log in at TTY1 — Sway starts automatically.
 | File manager | thunar |
 | Screen lock | swaylock |
 | Idle manager | swayidle |
+| Media player | mpv + yt-dlp |
+| Offline AI | ollama + llama3.2 |
 
 ---
 
@@ -120,6 +173,12 @@ grim -g "$(slurp)" ~/Pictures/screenshot.png
 
 ---
 
+## License
+
+SnowFoxOS is released under the **SnowFox Public License (SFL) v1.0** — a custom license built on the belief that software should serve people, not exploit them. See [LICENSE](LICENSE) for details.
+
+---
+
 <div align="center">
-<sub>Built by Xr7-Code on Debian 12</sub>
+<sub>Built by Alexander Valentin Ludwig (Xr7-Code) on Debian 12</sub>
 </div>
