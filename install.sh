@@ -457,9 +457,9 @@ success "Terminal Greeting eingerichtet"
 
 # Ollama (Offline-KI)
 info "Ollama wird installiert..."
-curl -fsSL https://ollama.ai/install.sh | sh 2>/dev/null && \
+curl -fsSL https://ollama.com/install.sh | sh 2>/dev/null && \
     success "Ollama installiert" || \
-    warn "Ollama konnte nicht installiert werden — manuell: curl -fsSL https://ollama.ai/install.sh | sh"
+    warn "Ollama konnte nicht installiert werden — manuell: curl -fsSL https://ollama.com/install.sh | sh"
 
 if command -v ollama &>/dev/null; then
     info "llama3.2 wird heruntergeladen (ca. 2GB)..."
