@@ -257,7 +257,7 @@ success "Brave Browser installiert"
 # ============================================================
 step "7/8 — zram & Optimierung"
 
-apt-get install -y zram-tools
+apt-get install -y zram-tools tlp tlp-rdw
 
 cat > /etc/default/zramswap << 'EOF'
 ALGO=lz4
@@ -266,6 +266,7 @@ PRIORITY=100
 EOF
 
 systemctl enable zramswap
+systemctl enable tlp
 
 # RAM bevorzugen, spät auf zram ausweichen
 cat > /etc/sysctl.d/99-snowfox.conf << 'EOF'
@@ -530,6 +531,7 @@ echo -e "${GRAY}  GPU:        ${BOLD}$(
     echo "Intel/andere"
 )${RESET}"
 echo -e "${GRAY}  zram:       ${BOLD}aktiv (lz4, 50%)${RESET}"
+echo -e "${GRAY}  tlp:        ${BOLD}aktiv (Akku-Optimierung)${RESET}"
 echo -e "${GRAY}  swappiness: ${BOLD}10 (RAM-bevorzugend)${RESET}"
 echo -e "${GRAY}  Login:      ${BOLD}TTY1 → Passwort → Sway${RESET}"
 echo ""
