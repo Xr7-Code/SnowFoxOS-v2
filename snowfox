@@ -34,9 +34,9 @@ cmd_status() {
     echo -e "${GRAY}  Uptime:     ${BOLD}${UPTIME}${RESET}"
 
     # RAM
-    RAM_TOTAL=$(free -m | awk '/^Mem:/ {print $2}')
-    RAM_USED=$(free -m | awk '/^Mem:/ {print $3}')
-    RAM_FREE=$(free -m | awk '/^Mem:/ {print $7}')
+    RAM_TOTAL=$(awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo)
+    RAM_FREE=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)
+    RAM_USED=$((RAM_TOTAL - RAM_FREE))
     echo -e "${GRAY}  RAM:        ${BOLD}${RAM_USED}MB used / ${RAM_TOTAL}MB total (${RAM_FREE}MB free)${RESET}"
 
     # Disk
