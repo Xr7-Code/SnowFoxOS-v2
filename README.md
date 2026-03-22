@@ -67,7 +67,15 @@ SnowFoxOS is tuned to stay out of the way and use as little resources as possibl
 - `vm.swappiness=10` keeps data in RAM as long as possible
 - Unnecessary system services are disabled on install (cups, avahi, ModemManager, and more)
 - No display manager — Sway starts directly from TTY1
-- Idle RAM usage with only a terminal open: ~870MB on 8GB hardware
+- **~700MB idle RAM** — minimal for a full modern Wayland desktop with audio, networking, and compositor
+
+For context:
+| System | Idle RAM |
+|---|---|
+| Windows 11 | ~3.5GB |
+| Ubuntu (GNOME) | ~1.5GB |
+| KDE Plasma | ~900MB |
+| SnowFoxOS | ~700MB |
 
 ![btop](assets/screenshots/btop.png)
 
@@ -85,6 +93,7 @@ SnowFoxOS comes with a built-in command line tool called `snowfox` — a control
 | `snowfox audit` | Show all active network connections |
 | `snowfox airmode on/off` | Kill all wireless — WiFi, Bluetooth, everything |
 | `snowfox kill mic/cam/all` | Disable hardware at kernel level |
+| `snowfox network` | Network manager via Wofi |
 | `snowfox download <URL>` | Download video or audio from 1000+ sites |
 | `snowfox stream <URL>` | Stream directly in mpv — no browser, no tracking |
 | `snowfox pass` | Local encrypted password manager |
@@ -129,6 +138,7 @@ After reboot, log in at TTY1 — Sway starts automatically.
 | `Super + Space` | App launcher (Wofi) |
 | `Super + B` | Brave Browser |
 | `Super + E` | File manager (Thunar) |
+| `Super + N` | Network manager (Wofi) |
 | `Super + L` | Lock screen |
 | `Super + Q` | Close window |
 | `Super + F` | Toggle fullscreen |
