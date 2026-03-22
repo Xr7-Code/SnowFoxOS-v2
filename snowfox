@@ -145,17 +145,32 @@ cmd_gpu() {
 cmd_audit() {
     fox "Aktive Netzwerkverbindungen:"
     divider
-    echo -e "${BOLD}  Prozess              Proto  Lokale Adresse        Ziel${RESET}"
+    echo -e "${BOLD}  Prozess              Proto  Ziel-IP               Land${RESET}"
     echo ""
 
     if command -v ss &>/dev/null; then
         ss -tunp 2>/dev/null | tail -n +2 | while read -r line; do
             PROTO=$(echo "$line" | awk '{print $1}')
-            LOCAL=$(echo "$line" | awk '{print $5}')
             REMOTE=$(echo "$line" | awk '{print $6}')
             PROC=$(echo "$line" | grep -oP 'users:\(\("\K[^"]+' || echo "unbekannt")
             [[ "$REMOTE" == "*" || "$REMOTE" == "0.0.0.0:*" || -z "$REMOTE" ]] && continue
-            printf "  ${CYAN}%-20s${RESET} %-6s %-21s ${ORANGE}%s${RESET}\n" "$PROC" "$PROTO" "$LOCAL" "$REMOTE"
+
+            # IP ohne Port
+            IP=$(echo "$REMOTE" | sed 's/:[0-9]*$//' | tr -d '[]')
+
+            # Lokale IPs überspringen
+            if echo "$IP" | grep -qE '^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.|::1|fe80)'; then
+                COUNTRY="lokal"
+                COUNTRY_COLOR="${GRAY}"
+            else
+                # Geo-IP lookup via curl (offline-fallback)
+                COUNTRY=$(curl -s --max-time 2 "https://ipapi.co/${IP}/country_name/" 2>/dev/null || echo "?")
+                [[ -z "$COUNTRY" || "$COUNTRY" == *"error"* ]] && COUNTRY="?"
+                COUNTRY_COLOR="${ORANGE}"
+            fi
+
+            printf "  ${CYAN}%-20s${RESET} %-6s %-21s ${COUNTRY_COLOR}%s${RESET}\n" \
+                "$PROC" "$PROTO" "$IP" "$COUNTRY"
         done
     else
         err "ss nicht gefunden — bitte iproute2 installieren."
@@ -488,6 +503,7 @@ cmd_help() {
     echo ""
     echo -e "  ${CYAN}${BOLD}snowfox status${RESET}              — System-Übersicht"
     echo -e "  ${CYAN}${BOLD}snowfox battery${RESET}             — Akku Status, Verbrauch & Gesundheit"
+    echo -e "  ${CYAN}${BOLD}snowfox profile [name]${RESET}      — Profil wechseln (balanced|performance|battery|privacy)"
     echo -e "  ${CYAN}${BOLD}snowfox update${RESET}              — System aktualisieren"
     echo -e "  ${CYAN}${BOLD}snowfox gpu${RESET}                 — GPU-Modus wechseln (Hybrid)"
     echo -e "  ${CYAN}${BOLD}snowfox audit${RESET}               — aktive Netzwerkverbindungen"
@@ -601,6 +617,84 @@ cmd_battery() {
 }
 
 # ============================================================
+# snowfox profile
+# ============================================================
+PROFILE_FILE="$HOME/.config/snowfox/profile"
+
+cmd_profile() {
+    mkdir -p "$HOME/.config/snowfox"
+
+    CURRENT=$(cat "$PROFILE_FILE" 2>/dev/null || echo "balanced")
+
+    case "$1" in
+        performance)
+            echo "performance" > "$PROFILE_FILE"
+            # CPU Governor auf performance
+            echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor &>/dev/null || true
+            # swappiness hoch für mehr RAM-Nutzung
+            sudo sysctl -w vm.swappiness=10 &>/dev/null
+            # wlsunset deaktivieren
+            pkill wlsunset 2>/dev/null || true
+            ok "Profil: ${BOLD}Performance${RESET}"
+            info "  CPU-Governor: performance | swappiness: 10 | wlsunset: aus"
+            ;;
+        battery)
+            echo "battery" > "$PROFILE_FILE"
+            # CPU Governor auf powersave
+            echo powersave | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor &>/dev/null || true
+            # swappiness erhöhen um RAM zu schonen
+            sudo sysctl -w vm.swappiness=60 &>/dev/null
+            # wlsunset aktivieren
+            pkill wlsunset 2>/dev/null || true
+            wlsunset -l 48.3 -L 14.3 &>/dev/null &
+            ok "Profil: ${BOLD}Battery${RESET}"
+            info "  CPU-Governor: powersave | swappiness: 60 | wlsunset: an"
+            ;;
+        privacy)
+            echo "privacy" > "$PROFILE_FILE"
+            # Alle Funkverbindungen aus
+            sudo rfkill block wifi bluetooth &>/dev/null || true
+            # DNS auf lokalen Resolver
+            sudo resolvectl dns 2>/dev/null || true
+            # wlsunset deaktivieren
+            pkill wlsunset 2>/dev/null || true
+            ok "Profil: ${BOLD}Privacy${RESET}"
+            info "  WiFi: aus | Bluetooth: aus | Funk: blockiert"
+            warn "  Netzwerk deaktiviert — 'snowfox profile balanced' zum Zurücksetzen"
+            ;;
+        balanced|"")
+            echo "balanced" > "$PROFILE_FILE"
+            # CPU Governor auf schedutil (Standard)
+            echo schedutil | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor &>/dev/null || true
+            sudo sysctl -w vm.swappiness=10 &>/dev/null
+            # Funk wieder aktivieren falls privacy aktiv war
+            sudo rfkill unblock all &>/dev/null || true
+            # wlsunset deaktivieren
+            pkill wlsunset 2>/dev/null || true
+            ok "Profil: ${BOLD}Balanced${RESET}"
+            info "  CPU-Governor: schedutil | swappiness: 10 | wlsunset: aus"
+            ;;
+        status|"")
+            divider
+            echo -e "${PURPLE}${BOLD}  SnowFoxOS — Aktives Profil${RESET}"
+            divider
+            echo -e "${GRAY}  Profil:     ${BOLD}${CURRENT}${RESET}"
+            echo ""
+            echo -e "  Verfügbare Profile:"
+            echo -e "  ${CYAN}balanced${RESET}     — Standard, ausgewogen"
+            echo -e "  ${CYAN}performance${RESET}  — maximale CPU-Leistung, wlsunset aus"
+            echo -e "  ${CYAN}battery${RESET}      — Akku sparen, CPU gedrosselt, wlsunset an"
+            echo -e "  ${CYAN}privacy${RESET}      — kein Funk, maximale Isolation"
+            divider
+            ;;
+        *)
+            err "Unbekanntes Profil: $1"
+            info "Verfügbar: balanced, performance, battery, privacy"
+            ;;
+    esac
+}
+
+# ============================================================
 # Haupt-Dispatcher
 # ============================================================
 case "$1" in
@@ -616,6 +710,7 @@ case "$1" in
     tip)      cmd_tip ;;
     ai)       cmd_ai ;;
     battery)  cmd_battery ;;
+    profile)  cmd_profile "$2" ;;
     network)  exec ~/.config/sway/snowfox-network.sh ;;
     help|"")  cmd_help ;;
     *)
