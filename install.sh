@@ -448,12 +448,15 @@ fi
 
 # Autostart-Bloat deaktivieren
 mkdir -p "$CONFIG_DIR/autostart"
-for desktop in blueman-applet gnome-keyring-secrets gnome-keyring-pkcs11; do
+for desktop in blueman-applet gnome-keyring-secrets gnome-keyring-pkcs11 gnome-keyring-ssh; do
     if [[ -f "/etc/xdg/autostart/${desktop}.desktop" ]]; then
         cp "/etc/xdg/autostart/${desktop}.desktop" "$CONFIG_DIR/autostart/"
         echo "Hidden=true" >> "$CONFIG_DIR/autostart/${desktop}.desktop"
     fi
 done
+
+# gnome-keyring aus PAM entfernen — startet sonst beim Login
+sed -i 's/^password.*pam_gnome_keyring.so/# &/' /etc/pam.d/common-password 2>/dev/null || true
 
 # snowfox CLI
 cp "$SCRIPT_DIR/snowfox" /usr/local/bin/snowfox
