@@ -191,7 +191,11 @@ apt-get install -y \
     gvfs-backends \
     mousepad \
     ristretto \
-    file-roller
+    file-roller \
+    mpv \
+    yt-dlp \
+    ffmpeg \
+    gnupg
 
 success "Terminal (Kitty) & Apps installiert"
 
@@ -433,22 +437,36 @@ for desktop in blueman-applet gnome-keyring-secrets gnome-keyring-pkcs11; do
     fi
 done
 
-# snowfox-lite
-cat > /usr/local/bin/snowfox-lite << 'EOF'
-#!/bin/bash
-case "$1" in
-    on)
-        echo "export WLR_NO_HARDWARE_CURSORS=1" >> ~/.bash_profile
-        echo "Leicht-Modus aktiv — beim nächsten Login wirksam"
-        ;;
-    off)
-        sed -i '/WLR_NO_HARDWARE_CURSORS/d' ~/.bash_profile
-        echo "Leicht-Modus deaktiviert"
-        ;;
-    *) echo "Verwendung: snowfox-lite [on|off]" ;;
-esac
-EOF
-chmod +x /usr/local/bin/snowfox-lite
+# snowfox CLI
+cp "$SCRIPT_DIR/snowfox" /usr/local/bin/snowfox
+chmod +x /usr/local/bin/snowfox
+success "snowfox CLI installiert"
+
+# snowfox Greeting
+cp "$SCRIPT_DIR/snowfox-greeting.sh" /usr/local/bin/snowfox-greeting
+chmod +x /usr/local/bin/snowfox-greeting
+
+# Greeting in bashrc einbinden
+BASHRC="$TARGET_HOME/.bashrc"
+if ! grep -q "snowfox-greeting" "$BASHRC" 2>/dev/null; then
+    echo '' >> "$BASHRC"
+    echo '# SnowFoxOS Greeting' >> "$BASHRC"
+    echo '[[ -x /usr/local/bin/snowfox-greeting ]] && snowfox-greeting' >> "$BASHRC"
+fi
+success "Terminal Greeting eingerichtet"
+
+# Ollama (Offline-KI)
+info "Ollama wird installiert..."
+curl -fsSL https://ollama.ai/install.sh | sh 2>/dev/null && \
+    success "Ollama installiert" || \
+    warn "Ollama konnte nicht installiert werden — manuell: curl -fsSL https://ollama.ai/install.sh | sh"
+
+if command -v ollama &>/dev/null; then
+    info "llama3.2 wird heruntergeladen (ca. 2GB)..."
+    sudo -u "$TARGET_USER" ollama pull llama3.2 2>/dev/null && \
+        success "llama3.2 bereit — starte mit: snowfox ai" || \
+        warn "llama3.2 konnte nicht geladen werden — manuell: ollama pull llama3.2"
+fi
 
 # Berechtigungen
 chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config"
@@ -474,6 +492,8 @@ echo -e "${GRAY}  Browser:    ${BOLD}Brave${RESET}"
 echo -e "${GRAY}  Audio:      ${BOLD}PipeWire${RESET}"
 echo -e "${GRAY}  Darkmode:   ${BOLD}GTK3 + GTK4${RESET}"
 echo -e "${GRAY}  Portal:     ${BOLD}xdg-desktop-portal-wlr${RESET}"
+echo -e "${GRAY}  KI:         ${BOLD}Ollama + llama3.2 (offline)${RESET}"
+echo -e "${GRAY}  CLI:        ${BOLD}snowfox${RESET}"
 echo -e "${GRAY}  GPU:        ${BOLD}$(
     $IS_HYBRID && echo "Hybrid (AMD + Nvidia) → Nvidia-Modus aktiv" || \
     { $HAS_NVIDIA && echo "Nvidia"; } || \
