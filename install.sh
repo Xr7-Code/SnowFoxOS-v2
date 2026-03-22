@@ -170,7 +170,8 @@ apt-get install -y \
     pipewire-pulse \
     pipewire-alsa \
     wireplumber \
-    pavucontrol
+    pavucontrol \
+    pulseaudio-utils
 
 apt-get remove --purge -y pulseaudio pulseaudio-utils 2>/dev/null || true
 sudo -u "$TARGET_USER" systemctl --user enable pipewire pipewire-pulse wireplumber 2>/dev/null || true
