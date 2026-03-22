@@ -193,9 +193,13 @@ apt-get install -y \
     ristretto \
     file-roller \
     mpv \
-    yt-dlp \
     ffmpeg \
     gnupg
+
+# yt-dlp direkt von GitHub — apt-Version ist immer veraltet
+curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+chmod +x /usr/local/bin/yt-dlp
+success "yt-dlp (neueste Version) installiert"
 
 success "Terminal (Kitty) & Apps installiert"
 
@@ -280,6 +284,9 @@ sudo -u "$TARGET_USER" systemctl --user disable \
     xdg-document-portal.service \
     xdg-permission-store.service 2>/dev/null || true
 
+# Ollama nicht automatisch starten — wird on-demand durch snowfox ai gestartet
+systemctl disable ollama 2>/dev/null || true
+
 mkdir -p /etc/NetworkManager/conf.d
 cat > /etc/NetworkManager/conf.d/snowfox.conf << 'EOF'
 [device]
@@ -314,11 +321,13 @@ mkdir -p \
     "$TARGET_HOME/Pictures/wallpapers"
 
 # Sway
-cp "$SCRIPT_DIR/configs/sway/config"        "$CONFIG_DIR/sway/config"
-cp "$SCRIPT_DIR/configs/sway/wallpaper.sh"  "$CONFIG_DIR/sway/wallpaper.sh"
-cp "$SCRIPT_DIR/configs/sway/powermenu.sh"  "$CONFIG_DIR/sway/powermenu.sh"
+cp "$SCRIPT_DIR/configs/sway/config"           "$CONFIG_DIR/sway/config"
+cp "$SCRIPT_DIR/configs/sway/wallpaper.sh"     "$CONFIG_DIR/sway/wallpaper.sh"
+cp "$SCRIPT_DIR/configs/sway/powermenu.sh"     "$CONFIG_DIR/sway/powermenu.sh"
+cp "$SCRIPT_DIR/configs/sway/snowfox-network.sh" "$CONFIG_DIR/sway/snowfox-network.sh"
 chmod +x "$CONFIG_DIR/sway/wallpaper.sh"
 chmod +x "$CONFIG_DIR/sway/powermenu.sh"
+chmod +x "$CONFIG_DIR/sway/snowfox-network.sh"
 
 # Waybar
 cp "$SCRIPT_DIR/configs/waybar/config"    "$CONFIG_DIR/waybar/config"
@@ -361,6 +370,14 @@ color15  #e8e8e8
 window_padding_width 8
 hide_window_decorations yes
 confirm_os_window_close 0
+EOF
+
+# mpv — Wayland Output erzwingen
+mkdir -p "$CONFIG_DIR/mpv"
+cat > "$CONFIG_DIR/mpv/mpv.conf" << 'EOF'
+vo=gpu
+gpu-context=wayland
+hwdec=auto
 EOF
 
 # GTK Darkmode
