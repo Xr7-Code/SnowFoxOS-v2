@@ -456,16 +456,22 @@ fi
 success "Terminal Greeting eingerichtet"
 
 # Ollama (Offline-KI)
-info "Ollama wird installiert..."
-curl -fsSL https://ollama.com/install.sh | sh 2>/dev/null && \
-    success "Ollama installiert" || \
-    warn "Ollama konnte nicht installiert werden — manuell: curl -fsSL https://ollama.com/install.sh | sh"
+echo ""
+read -rp "$(echo -e ${PURPLE}${BOLD}"[SnowFox] Ollama + llama3.2 installieren? (Offline-KI, ca. 2GB) [j/n]: "${RESET})" INSTALL_OLLAMA
+if [[ "$INSTALL_OLLAMA" == "j" || "$INSTALL_OLLAMA" == "J" ]]; then
+    info "Ollama wird installiert..."
+    curl -fsSL https://ollama.com/install.sh | sh 2>/dev/null && \
+        success "Ollama installiert" || \
+        warn "Ollama konnte nicht installiert werden — manuell: curl -fsSL https://ollama.com/install.sh | sh"
 
-if command -v ollama &>/dev/null; then
-    info "llama3.2 wird heruntergeladen (ca. 2GB)..."
-    sudo -u "$TARGET_USER" ollama pull llama3.2 2>/dev/null && \
-        success "llama3.2 bereit — starte mit: snowfox ai" || \
-        warn "llama3.2 konnte nicht geladen werden — manuell: ollama pull llama3.2"
+    if command -v ollama &>/dev/null; then
+        info "llama3.2 wird heruntergeladen (ca. 2GB)..."
+        sudo -u "$TARGET_USER" ollama pull llama3.2 2>/dev/null && \
+            success "llama3.2 bereit — starte mit: snowfox ai" || \
+            warn "llama3.2 konnte nicht geladen werden — manuell: ollama pull llama3.2"
+    fi
+else
+    info "Ollama übersprungen — später installierbar mit: curl -fsSL https://ollama.com/install.sh | sh"
 fi
 
 # Berechtigungen
