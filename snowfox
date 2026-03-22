@@ -72,11 +72,16 @@ cmd_status() {
     fi
 
     # Mikrofon Status
-    MIC_MUTE=$(pactl get-source-mute @DEFAULT_SOURCE@ 2>/dev/null | awk '{print $2}')
-    if [[ "$MIC_MUTE" == "yes" ]]; then
-        echo -e "${GRAY}  Mikrofon:   ${RED}${BOLD}deaktiviert${RESET}"
+    MIC_ID=$(pactl list sources short 2>/dev/null | grep -v monitor | awk '{print $1}' | head -1)
+    if [[ -n "$MIC_ID" ]]; then
+        MIC_MUTE=$(pactl get-source-mute "$MIC_ID" 2>/dev/null | awk '{print $2}')
+        if [[ "$MIC_MUTE" == "yes" ]]; then
+            echo -e "${GRAY}  Mikrofon:   ${RED}${BOLD}deaktiviert${RESET}"
+        else
+            echo -e "${GRAY}  Mikrofon:   ${GREEN}${BOLD}aktiv${RESET}"
+        fi
     else
-        echo -e "${GRAY}  Mikrofon:   ${GREEN}${BOLD}aktiv${RESET}"
+        echo -e "${GRAY}  Mikrofon:   ${GRAY}${BOLD}keines gefunden${RESET}"
     fi
 
     # Kamera Status
@@ -194,7 +199,12 @@ cmd_airmode() {
 cmd_kill() {
     case "$1" in
         mic)
-            pactl set-source-mute @DEFAULT_SOURCE@ 1 2>/dev/null && \
+            MIC_ID=$(pactl list sources short 2>/dev/null | grep -v monitor | awk '{print $1}' | head -1)
+            if [[ -z "$MIC_ID" ]]; then
+                err "Kein Mikrofon gefunden."
+                exit 1
+            fi
+            pactl set-source-mute "$MIC_ID" 1 2>/dev/null && \
                 ok "Mikrofon deaktiviert." || err "Mikrofon konnte nicht deaktiviert werden."
             ;;
         cam)
@@ -206,13 +216,15 @@ cmd_kill() {
             fi
             ;;
         all)
-            pactl set-source-mute @DEFAULT_SOURCE@ 1 2>/dev/null && ok "Mikrofon deaktiviert."
+            MIC_ID=$(pactl list sources short 2>/dev/null | grep -v monitor | awk '{print $1}' | head -1)
+            [[ -n "$MIC_ID" ]] && pactl set-source-mute "$MIC_ID" 1 2>/dev/null && ok "Mikrofon deaktiviert." || true
             sudo modprobe -r uvcvideo 2>/dev/null && ok "Kamera deaktiviert." || true
             sudo rfkill block all && ok "Alle Funkverbindungen deaktiviert."
             warn "Gerät ist jetzt im vollständigen Schweige-Modus."
             ;;
         restore)
-            pactl set-source-mute @DEFAULT_SOURCE@ 0 2>/dev/null && ok "Mikrofon reaktiviert."
+            MIC_ID=$(pactl list sources short 2>/dev/null | grep -v monitor | awk '{print $1}' | head -1)
+            [[ -n "$MIC_ID" ]] && pactl set-source-mute "$MIC_ID" 0 2>/dev/null && ok "Mikrofon reaktiviert." || true
             sudo modprobe uvcvideo 2>/dev/null && ok "Kamera reaktiviert." || true
             sudo rfkill unblock all && ok "Funk reaktiviert."
             ;;
@@ -271,7 +283,7 @@ cmd_stream() {
     fi
 
     fox "Starte Stream: $1"
-    mpv --no-video "$1" 2>/dev/null || mpv "$1"
+    mpv --ytdl --ytdl-raw-options="no-playlist=" "$1"
 }
 
 # ============================================================
