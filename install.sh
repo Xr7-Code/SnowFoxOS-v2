@@ -276,10 +276,11 @@ for svc in avahi-daemon cups cups-browsed ModemManager e2scrub_reap bluetooth; d
 done
 systemctl mask NetworkManager-wait-online.service 2>/dev/null || true
 
-# Unnötige User-Dienste deaktivieren
-sudo -u "$TARGET_USER" systemctl --user disable \
+# Unnötige User-Dienste maskieren — verhindert auch D-Bus Aktivierung
+sudo -u "$TARGET_USER" systemctl --user mask \
     at-spi-dbus-bus.service \
     gnome-keyring-daemon.service \
+    gnome-keyring-daemon.socket \
     obex.service \
     xdg-document-portal.service \
     xdg-permission-store.service 2>/dev/null || true
