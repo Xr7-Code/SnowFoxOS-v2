@@ -669,10 +669,11 @@ cmd_profile() {
             sudo sysctl -w vm.swappiness=10 &>/dev/null
             # Funk wieder aktivieren falls privacy aktiv war
             sudo rfkill unblock all &>/dev/null || true
-            # wlsunset deaktivieren
+            # wlsunset aktivieren
             pkill wlsunset 2>/dev/null || true
+            wlsunset -l 48.3 -L 14.3 &>/dev/null &
             ok "Profil: ${BOLD}Balanced${RESET}"
-            info "  CPU-Governor: schedutil | swappiness: 10 | wlsunset: aus"
+            info "  CPU-Governor: schedutil | swappiness: 10 | wlsunset: an"
             ;;
         status|"")
             divider
