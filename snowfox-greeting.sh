@@ -30,8 +30,9 @@ fi
 
 # System Info
 UPTIME=$(uptime -p | sed 's/up //')
-RAM_FREE=$(free -m | awk '/^Mem:/ {print $7}')
-RAM_TOTAL=$(free -m | awk '/^Mem:/ {print $2}')
+RAM_TOTAL=$(awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo)
+RAM_FREE=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)
+RAM_USED=$((RAM_TOTAL - RAM_FREE))
 DISK_FREE=$(df -h / | awk 'NR==2 {print $4}')
 
 # Zitate & Seitenhiebe
