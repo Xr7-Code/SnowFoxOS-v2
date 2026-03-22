@@ -48,12 +48,14 @@ This system is for people who want their hardware back. It runs well on machines
 
 - **Sway** — tiling Wayland compositor with smart gaps and per-window floating rules
 - **Waybar** — status bar with CPU, RAM, battery, network and audio
-- **Wofi** — fast app launcher with a matching dark theme
+- **Wofi** — fast app launcher and network manager with a matching dark theme
 - **Kitty** — GPU-accelerated terminal
 - **Brave** — privacy-focused browser, Firefox removed
 - **PipeWire** — modern audio stack, PulseAudio removed
 - **Dunst** — lightweight notification daemon
 - **zram** — compressed swap in RAM (lz4, 50%), swappiness tuned to 10
+- **tlp** — automatic battery optimization, active on every boot
+- **wlsunset** — automatic blue light reduction based on time of day
 - **GPU auto-detection** — installs the right drivers for AMD, Nvidia, or hybrid setups automatically
 - **Dark mode** — GTK3 + GTK4 Adwaita-dark out of the box
 
@@ -67,6 +69,7 @@ SnowFoxOS is tuned to stay out of the way and use as little resources as possibl
 
 - zram with lz4 compression replaces traditional swap — faster and RAM-efficient
 - `vm.swappiness=10` keeps data in RAM as long as possible
+- `tlp` optimizes CPU, USB, and disk power management automatically
 - Unnecessary system services are disabled on install (cups, avahi, ModemManager, and more)
 - No display manager — Sway starts directly from TTY1
 - **~700MB idle RAM** — for a full modern Wayland desktop including audio, networking, and compositor
@@ -93,9 +96,11 @@ The following comparison reflects approximate values for typical default setups:
 | Command | Description |
 |---|---|
 | `snowfox status` | RAM, disk, uptime, GPU mode, mic/cam status |
+| `snowfox battery` | Battery level, power draw, estimated runtime, health |
+| `snowfox profile [name]` | Switch system profile: balanced, performance, battery, privacy |
 | `snowfox update` | System update |
 | `snowfox gpu` | Switch GPU mode (hybrid systems only) |
-| `snowfox audit` | Show all active network connections with process and destination |
+| `snowfox audit` | Active network connections with destination IP and country |
 
 ### Privacy & Hardware
 
@@ -120,6 +125,17 @@ The following comparison reflects approximate values for typical default setups:
 | `snowfox network` | Network manager via Wofi |
 | `snowfox ai` | Offline AI that knows your system |
 | `snowfox help` | Show all commands |
+
+### System Profiles
+
+`snowfox profile` switches between four modes instantly:
+
+| Profile | CPU | swappiness | wlsunset | Network |
+|---|---|---|---|---|
+| `balanced` | schedutil | 10 | on | on |
+| `performance` | performance | 10 | off | on |
+| `battery` | powersave | 60 | on | on |
+| `privacy` | schedutil | 10 | off | all off |
 
 ### Why `snowfox stream`?
 
@@ -185,6 +201,8 @@ After reboot, log in at TTY1 — Sway starts automatically.
 | Screen lock | swaylock |
 | Idle manager | swayidle |
 | Media player | mpv + yt-dlp |
+| Battery | tlp |
+| Blue light | wlsunset |
 | Offline AI | ollama + llama3.2 |
 
 ---
@@ -205,7 +223,7 @@ grim -g "$(slurp)" ~/Pictures/screenshot.png
 
 ## License
 
-SnowFoxOS is released under the **SnowFox Public License (SFL) v1.0** — a custom license built on the belief that software should serve people, not exploit them. See [LICENSE](LICENSE) for details.
+SnowFoxOS is released under the **SnowFox Public License (SFL) v1.1** — a custom license built on the belief that software should serve people, not exploit them. See [LICENSE](LICENSE) for details.
 
 ---
 
