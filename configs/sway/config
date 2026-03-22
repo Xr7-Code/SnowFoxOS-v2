@@ -65,8 +65,9 @@ exec swayidle -w \
     resume       'swaymsg "output * dpms on"' \
     before-sleep 'swaylock -f'
 
-# ── Waybar ──────────────────────────────────────────────────
-exec waybar
+# Waybar ──────────────────────────────────────────────────
+# NO_AT_BRIDGE verhindert dass Waybar at-spi-dbus startet
+exec env NO_AT_BRIDGE=1 waybar
 
 # ── Keyboard Shortcuts ──────────────────────────────────────
 bindsym $mod+Return exec $term
