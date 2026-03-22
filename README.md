@@ -8,7 +8,7 @@
 
 <div align="center">
 
-**A minimal, fast Wayland desktop built on Debian 12**
+**A lightweight, performance-focused Wayland desktop built on Debian 12**
 
 ![Version](https://img.shields.io/badge/version-v2.0-9B59B6?style=flat-square)
 ![Debian](https://img.shields.io/badge/base-Debian%2012-A81D33?style=flat-square&logo=debian&logoColor=white)
@@ -20,7 +20,9 @@
 
 ## Overview
 
-SnowFoxOS is a one-script installer that transforms a minimal Debian 12 installation into a polished, performance-focused Wayland desktop. No bloat, no display manager, no unnecessary services — just a clean Sway environment that gets out of your way.
+SnowFoxOS is a one-script installer that transforms a minimal Debian 12 installation into a controlled, performance-focused Wayland desktop. No bloat, no display manager, no unnecessary services — just a clean Sway environment unified around a single CLI tool: `snowfox`.
+
+The `snowfox` command is the heart of the system. It manages everything from system status and GPU switching to hardware kill switches, media streaming, and an offline AI — all from one place, all running locally.
 
 ![Desktop Overview](assets/screenshots/desktop.png)
 
@@ -33,7 +35,7 @@ Most operating systems treat you as a product. They collect your data, slow down
 SnowFoxOS is built on a different belief:
 
 > *Your computer belongs to you. Not to Microsoft. Not to anyone else.*
-> *No telemetry. No ads. No subscriptions. No one is watching.*
+> *No telemetry or background data collection. No ads. No subscriptions.*
 > *You are not a product. You are not data. You are a person.*
 >
 > — Alexander Valentin Ludwig
@@ -45,7 +47,7 @@ This system is for people who want their hardware back. It runs well on machines
 ## Features
 
 - **Sway** — tiling Wayland compositor with smart gaps and per-window floating rules
-- **Waybar** — minimal status bar with CPU, RAM, battery, network and audio
+- **Waybar** — status bar with CPU, RAM, battery, network and audio
 - **Wofi** — fast app launcher with a matching dark theme
 - **Kitty** — GPU-accelerated terminal
 - **Brave** — privacy-focused browser, Firefox removed
@@ -67,10 +69,11 @@ SnowFoxOS is tuned to stay out of the way and use as little resources as possibl
 - `vm.swappiness=10` keeps data in RAM as long as possible
 - Unnecessary system services are disabled on install (cups, avahi, ModemManager, and more)
 - No display manager — Sway starts directly from TTY1
-- **~700MB idle RAM** — minimal for a full modern Wayland desktop with audio, networking, and compositor
+- **~700MB idle RAM** — for a full modern Wayland desktop including audio, networking, and compositor
 
-For context:
-| System | Idle RAM |
+The following comparison reflects approximate values for typical default setups:
+
+| System | Idle RAM (approx.) |
 |---|---|
 | Windows 11 | ~3.5GB |
 | Ubuntu (GNOME) | ~1.5GB |
@@ -83,21 +86,38 @@ For context:
 
 ## snowfox CLI
 
-SnowFoxOS comes with a built-in command line tool called `snowfox` — a control center for your system.
+`snowfox` is the central control interface of SnowFoxOS. Instead of scattered tools and settings menus, everything is accessible through one unified command — designed to be fast, transparent, and local.
+
+### System
 
 | Command | Description |
 |---|---|
 | `snowfox status` | RAM, disk, uptime, GPU mode, mic/cam status |
-| `snowfox update` | System update with SnowFox branding |
-| `snowfox gpu` | Switch GPU mode (hybrid systems) |
-| `snowfox audit` | Show all active network connections |
-| `snowfox airmode on/off` | Kill all wireless — WiFi, Bluetooth, everything |
-| `snowfox kill mic/cam/all` | Disable hardware at kernel level |
-| `snowfox network` | Network manager via Wofi |
-| `snowfox download <URL>` | Download video or audio from 1000+ sites |
-| `snowfox stream <URL>` | Stream directly in mpv — no browser, no tracking |
-| `snowfox pass` | Local encrypted password manager |
+| `snowfox update` | System update |
+| `snowfox gpu` | Switch GPU mode (hybrid systems only) |
+| `snowfox audit` | Show all active network connections with process and destination |
+
+### Privacy & Hardware
+
+| Command | Description |
+|---|---|
+| `snowfox airmode on/off` | Disable all wireless interfaces — WiFi, Bluetooth, everything |
+| `snowfox kill mic/cam/all` | Disable microphone or camera at kernel level |
+| `snowfox pass` | Local encrypted password manager — no cloud, no sync |
 | `snowfox tip` | Random security tip — digital and real life |
+
+### Media
+
+| Command | Description |
+|---|---|
+| `snowfox stream <URL>` | Stream directly in mpv — no browser, no tracking |
+| `snowfox download <URL>` | Download video or audio from 1000+ sites |
+
+### Other
+
+| Command | Description |
+|---|---|
+| `snowfox network` | Network manager via Wofi |
 | `snowfox ai` | Offline AI that knows your system |
 | `snowfox help` | Show all commands |
 
