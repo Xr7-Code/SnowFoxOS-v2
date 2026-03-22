@@ -137,7 +137,8 @@ apt-get install -y \
     fonts-inter \
     fonts-noto \
     fonts-noto-color-emoji \
-    papirus-icon-theme
+    papirus-icon-theme \
+    wlsunset
 
 apt-get install -y blueman 2>/dev/null || warn "Blueman nicht verfügbar — Bluetooth nur per CLI"
 
@@ -323,9 +324,9 @@ mkdir -p \
     "$TARGET_HOME/Pictures/wallpapers"
 
 # Sway
-cp "$SCRIPT_DIR/configs/sway/config"           "$CONFIG_DIR/sway/config"
-cp "$SCRIPT_DIR/configs/sway/wallpaper.sh"     "$CONFIG_DIR/sway/wallpaper.sh"
-cp "$SCRIPT_DIR/configs/sway/powermenu.sh"     "$CONFIG_DIR/sway/powermenu.sh"
+cp "$SCRIPT_DIR/configs/sway/config"             "$CONFIG_DIR/sway/config"
+cp "$SCRIPT_DIR/configs/sway/wallpaper.sh"       "$CONFIG_DIR/sway/wallpaper.sh"
+cp "$SCRIPT_DIR/configs/sway/powermenu.sh"       "$CONFIG_DIR/sway/powermenu.sh"
 cp "$SCRIPT_DIR/configs/sway/snowfox-network.sh" "$CONFIG_DIR/sway/snowfox-network.sh"
 chmod +x "$CONFIG_DIR/sway/wallpaper.sh"
 chmod +x "$CONFIG_DIR/sway/powermenu.sh"
