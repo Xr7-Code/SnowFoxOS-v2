@@ -487,6 +487,7 @@ cmd_help() {
     divider
     echo ""
     echo -e "  ${CYAN}${BOLD}snowfox status${RESET}              — System-Übersicht"
+    echo -e "  ${CYAN}${BOLD}snowfox battery${RESET}             — Akku Status, Verbrauch & Gesundheit"
     echo -e "  ${CYAN}${BOLD}snowfox update${RESET}              — System aktualisieren"
     echo -e "  ${CYAN}${BOLD}snowfox gpu${RESET}                 — GPU-Modus wechseln (Hybrid)"
     echo -e "  ${CYAN}${BOLD}snowfox audit${RESET}               — aktive Netzwerkverbindungen"
@@ -500,6 +501,102 @@ cmd_help() {
     echo -e "  ${CYAN}${BOLD}snowfox ai${RESET}                  — Offline-KI"
     echo -e "  ${CYAN}${BOLD}snowfox help${RESET}                — diese Hilfe"
     echo ""
+    divider
+}
+
+# ============================================================
+# snowfox battery
+# ============================================================
+cmd_battery() {
+    divider
+    echo -e "${PURPLE}${BOLD}  SnowFoxOS — Akku Status${RESET}"
+    divider
+
+    BAT_PATH=""
+    for p in /sys/class/power_supply/BAT*; do
+        [[ -d "$p" ]] && BAT_PATH="$p" && break
+    done
+
+    if [[ -z "$BAT_PATH" ]]; then
+        warn "Kein Akku gefunden — Desktop-System?"
+        divider
+        return
+    fi
+
+    # Status
+    STATUS=$(cat "$BAT_PATH/status" 2>/dev/null || echo "Unbekannt")
+    CAPACITY=$(cat "$BAT_PATH/capacity" 2>/dev/null || echo "?")
+
+    # Farbe je nach Ladestand
+    if [[ "$CAPACITY" -ge 80 ]]; then
+        CAP_COLOR="${GREEN}"
+    elif [[ "$CAPACITY" -ge 30 ]]; then
+        CAP_COLOR="${ORANGE}"
+    else
+        CAP_COLOR="${RED}"
+    fi
+
+    # Status-Icon
+    case "$STATUS" in
+        Charging)    STATUS_ICON="⚡ Lädt" ;;
+        Discharging) STATUS_ICON="🔋 Entlädt" ;;
+        Full)        STATUS_ICON="✓ Voll" ;;
+        *)           STATUS_ICON="$STATUS" ;;
+    esac
+
+    echo -e "${GRAY}  Status:     ${BOLD}${STATUS_ICON}${RESET}"
+    echo -e "${GRAY}  Ladestand:  ${CAP_COLOR}${BOLD}${CAPACITY}%${RESET}"
+
+    # Energie in Watt
+    if [[ -f "$BAT_PATH/power_now" ]]; then
+        POWER_UW=$(cat "$BAT_PATH/power_now")
+        POWER_W=$(echo "scale=1; $POWER_UW / 1000000" | bc 2>/dev/null || echo "?")
+        echo -e "${GRAY}  Verbrauch:  ${BOLD}${POWER_W}W${RESET}"
+    fi
+
+    # Kapazität in Wh
+    if [[ -f "$BAT_PATH/energy_full" && -f "$BAT_PATH/energy_now" ]]; then
+        ENERGY_FULL=$(cat "$BAT_PATH/energy_full")
+        ENERGY_NOW=$(cat "$BAT_PATH/energy_now")
+        ENERGY_FULL_WH=$(echo "scale=1; $ENERGY_FULL / 1000000" | bc 2>/dev/null || echo "?")
+        ENERGY_NOW_WH=$(echo "scale=1; $ENERGY_NOW / 1000000" | bc 2>/dev/null || echo "?")
+        echo -e "${GRAY}  Energie:    ${BOLD}${ENERGY_NOW_WH}Wh / ${ENERGY_FULL_WH}Wh${RESET}"
+    fi
+
+    # Restlaufzeit schätzen
+    if [[ -f "$BAT_PATH/power_now" && -f "$BAT_PATH/energy_now" ]]; then
+        POWER_UW=$(cat "$BAT_PATH/power_now")
+        ENERGY_NOW=$(cat "$BAT_PATH/energy_now")
+        if [[ "$POWER_UW" -gt 0 && "$STATUS" == "Discharging" ]]; then
+            MINUTES=$(echo "scale=0; ($ENERGY_NOW / $POWER_UW) * 60" | bc 2>/dev/null)
+            HOURS=$((MINUTES / 60))
+            MINS=$((MINUTES % 60))
+            echo -e "${GRAY}  Restzeit:   ${BOLD}~${HOURS}h ${MINS}m${RESET}"
+        elif [[ "$POWER_UW" -gt 0 && "$STATUS" == "Charging" ]]; then
+            ENERGY_FULL=$(cat "$BAT_PATH/energy_full")
+            ENERGY_MISSING=$((ENERGY_FULL - ENERGY_NOW))
+            MINUTES=$(echo "scale=0; ($ENERGY_MISSING / $POWER_UW) * 60" | bc 2>/dev/null)
+            HOURS=$((MINUTES / 60))
+            MINS=$((MINUTES % 60))
+            echo -e "${GRAY}  Voll in:    ${BOLD}~${HOURS}h ${MINS}m${RESET}"
+        fi
+    fi
+
+    # Akkugesundheit
+    if [[ -f "$BAT_PATH/energy_full" && -f "$BAT_PATH/energy_full_design" ]]; then
+        FULL=$(cat "$BAT_PATH/energy_full")
+        DESIGN=$(cat "$BAT_PATH/energy_full_design")
+        HEALTH=$(echo "scale=0; ($FULL * 100) / $DESIGN" | bc 2>/dev/null || echo "?")
+        if [[ "$HEALTH" -ge 80 ]]; then
+            HEALTH_COLOR="${GREEN}"
+        elif [[ "$HEALTH" -ge 60 ]]; then
+            HEALTH_COLOR="${ORANGE}"
+        else
+            HEALTH_COLOR="${RED}"
+        fi
+        echo -e "${GRAY}  Gesundheit: ${HEALTH_COLOR}${BOLD}${HEALTH}%${RESET}"
+    fi
+
     divider
 }
 
@@ -518,6 +615,7 @@ case "$1" in
     pass)     cmd_pass "$2" "$3" ;;
     tip)      cmd_tip ;;
     ai)       cmd_ai ;;
+    battery)  cmd_battery ;;
     network)  exec ~/.config/sway/snowfox-network.sh ;;
     help|"")  cmd_help ;;
     *)
