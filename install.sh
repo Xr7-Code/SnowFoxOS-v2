@@ -298,6 +298,8 @@ wifi.scan-rand-mac-address=no
 
 [main]
 plugins=ifupdown,keyfile
+# Captive Portals: Verbindung nicht trennen wenn kein vollständiges Internet
+connectivity-check-enabled=false
 
 [ifupdown]
 managed=true
