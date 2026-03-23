@@ -95,20 +95,16 @@ case "$CHOICE" in
                 notify-send "🦊 SnowFox" "Verbunden mit: $SSID" || \
                 notify-send "🦊 SnowFox" "Verbindung fehlgeschlagen"
 
-        # Offenes Netzwerk (kein Passwort)
-        elif [[ "$SECURITY" == "--" || "$CHOICE" == *"OPEN"* ]]; then
-            notify-send "🦊 SnowFox" "Verbinde mit offenem Netzwerk: $SSID"
-            nmcli device wifi connect "$SSID" && {
-                sleep 2
-                # Captive Portal prüfen und Browser öffnen
-                CAPTIVE=$(curl -s --max-time 3 -o /dev/null -w "%{http_code}" http://detectportal.firefox.com/success.txt)
-                if [[ "$CAPTIVE" != "200" ]]; then
-                    notify-send "🦊 SnowFox" "Captive Portal erkannt — Browser wird geöffnet"
-                    brave-browser "http://captive.apple.com" &
-                else
-                    notify-send "🦊 SnowFox" "Verbunden mit: $SSID"
-                fi
-            } || notify-send "🦊 SnowFox" "Verbindung fehlgeschlagen"
+        # Offenes Netzwerk — kein Passwort, Captive Portal möglich
+        elif [[ "$SECURITY" = "--" || "$CHOICE" == *"OPEN"* ]]; then
+            notify-send "🦊 SnowFox" "Verbinde mit: $SSID"
+            # Verbinden ohne auf Internet zu warten
+            nmcli device wifi connect "$SSID" -- connection.id "$SSID" 2>/dev/null || \
+            nmcli device wifi connect "$SSID" 2>/dev/null
+            sleep 3
+            # Browser sofort öffnen — Captive Portal zeigt sich selbst
+            notify-send "🦊 SnowFox" "Browser wird für Portal geöffnet..."
+            brave-browser "http://captive.apple.com/hotspot-detect.html" &
 
         # Verschlüsseltes Netzwerk — Passwort abfragen
         else
