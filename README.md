@@ -50,7 +50,7 @@ This system is for people who want their hardware back. It runs well on machines
 - **Waybar** — status bar with CPU, RAM, battery, network and audio
 - **Wofi** — fast app launcher and network manager with a matching dark theme
 - **Kitty** — GPU-accelerated terminal
-- **Brave** — privacy-focused browser, Firefox removed
+- **Brave** — privacy-focused browser, Firefox not included by design
 - **PipeWire** — modern audio stack, PulseAudio removed
 - **Dunst** — lightweight notification daemon
 - **zram** — compressed swap in RAM (lz4, 50%), swappiness tuned to 10
@@ -95,12 +95,13 @@ The following comparison reflects approximate values for typical default setups:
 
 | Command | Description |
 |---|---|
-| `snowfox status` | RAM, disk, uptime, GPU mode, mic/cam status |
+| `snowfox status` | RAM, disk, uptime, GPU mode, mic/cam status, active profile |
 | `snowfox battery` | Battery level, power draw, estimated runtime, health |
 | `snowfox profile [name]` | Switch system profile: balanced, performance, battery, privacy |
-| `snowfox update` | System update |
+| `snowfox update` | System update including yt-dlp |
 | `snowfox gpu` | Switch GPU mode (hybrid systems only) |
-| `snowfox audit` | Active network connections with destination IP and country |
+| `snowfox audit` | Active network connections with process and destination IP |
+| `snowfox autostart [list\|enable\|disable]` | Manage autostart programs |
 
 ### Privacy & Hardware
 
@@ -122,7 +123,7 @@ The following comparison reflects approximate values for typical default setups:
 
 | Command | Description |
 |---|---|
-| `snowfox network` | Network manager via Wofi |
+| `snowfox network` | Network manager via Wofi — including captive portal support |
 | `snowfox ai` | Offline AI that knows your system |
 | `snowfox help` | Show all commands |
 
@@ -147,7 +148,7 @@ Your attention belongs to you.
 
 ### Offline AI
 
-SnowFoxOS includes an optional offline AI powered by Ollama and llama3.2. It runs entirely on your machine — no cloud, no data leaving your device. It knows SnowFoxOS: your shortcuts, your tools, your commands. Ask it anything about your system, or just talk.
+SnowFoxOS includes an optional offline AI powered by Ollama and llama3.2. It runs entirely on your machine — no cloud, no data leaving your device. It knows SnowFoxOS: your shortcuts, your tools, your commands, your philosophy. Ask it anything about your system, or just talk.
 
 ---
 
