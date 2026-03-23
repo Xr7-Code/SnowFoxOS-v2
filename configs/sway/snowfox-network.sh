@@ -5,10 +5,11 @@
 
 # Verfügbare WLANs scannen
 NETWORKS=$(nmcli -f IN-USE,SSID,SIGNAL,SECURITY device wifi list 2>/dev/null | tail -n +2 | while IFS= read -r line; do
-    INUSE=$(echo "$line" | awk '{print $1}')
-    SSID=$(echo "$line" | awk '{print $2}')
-    SIGNAL=$(echo "$line" | awk '{print $3}')
-    SECURITY=$(echo "$line" | awk '{print $4}')
+    INUSE=$(echo "$line" | cut -c1-8 | xargs)
+    SSID=$(echo "$line" | cut -c9-31 | xargs)
+    SIGNAL=$(echo "$line" | cut -c32-39 | xargs)
+    SECURITY=$(echo "$line" | cut -c40- | xargs)
+    [[ -z "$SSID" || "$SSID" == "--" ]] && continue
     ICON=$([ "$INUSE" = "*" ] && echo "✓" || echo " ")
     SEC_LABEL=$([ "$SECURITY" = "--" ] && echo "OPEN" || echo "$SECURITY")
     printf "%s %-30s %3s%%  %s\n" "$ICON" "$SSID" "$SIGNAL" "$SEC_LABEL"
@@ -67,8 +68,8 @@ case "$CHOICE" in
         exit 0
         ;;
     *)
-        # SSID extrahieren — zweites Wort (erstes ist das ✓ oder Leerzeichen Icon)
-        SSID=$(echo "$CHOICE" | awk '{print $2}' | xargs)
+        # SSID extrahieren — Icon (1 Zeichen) + Leerzeichen, dann SSID bis zum ersten Leerzeichen+Zahl
+        SSID=$(echo "$CHOICE" | cut -c3- | awk '{print $1}' | xargs)
         [[ -z "$SSID" ]] && exit 0
 
         # Prüfen ob bereits verbunden
@@ -129,4 +130,3 @@ case "$CHOICE" in
         fi
         ;;
 esac
-
