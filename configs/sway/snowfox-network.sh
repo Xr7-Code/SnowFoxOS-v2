@@ -3,18 +3,12 @@
 #  SnowFoxOS — Netzwerk-Manager via Wofi
 # ============================================================
 
-PURPLE='\033[0;35m'
-ORANGE='\033[0;33m'
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-RESET='\033[0m'
-BOLD='\033[1m'
-
 # Verfügbare WLANs scannen
 NETWORKS=$(nmcli -f SSID,SIGNAL,SECURITY,IN-USE device wifi list 2>/dev/null | tail -n +2 | awk '
 {
     inuse = ($4 == "*") ? "✓ " : "  "
-    printf "%s%-35s %3s%%  %s\n", inuse, $1, $2, $3
+    security = ($3 == "--") ? "OPEN" : $3
+    printf "%s%-35s %3s%%  %s\n", inuse, $1, $2, security
 }')
 
 if [[ -z "$NETWORKS" ]]; then
@@ -70,24 +64,50 @@ case "$CHOICE" in
         exit 0
         ;;
     *)
-        # WLAN auswählen — SSID extrahieren
-        SSID=$(echo "$CHOICE" | awk '{print $1}' | xargs)
+        # SSID extrahieren
+        SSID=$(echo "$CHOICE" | sed 's/^[✓ ]*//' | awk '{print $1}' | xargs)
         [[ -z "$SSID" ]] && exit 0
 
         # Prüfen ob bereits verbunden
         CURRENT=$(nmcli -t -f active,ssid dev wifi | grep "^yes" | cut -d: -f2)
         if [[ "$CURRENT" == "$SSID" ]]; then
-            notify-send "🦊 SnowFox" "Bereits verbunden mit: $SSID"
+            # Bereits verbunden — Captive Portal prüfen
+            CAPTIVE=$(curl -s --max-time 3 -o /dev/null -w "%{http_code}" http://detectportal.firefox.com/success.txt)
+            if [[ "$CAPTIVE" != "200" ]]; then
+                notify-send "🦊 SnowFox" "Captive Portal erkannt — Browser wird geöffnet"
+                brave-browser "http://detectportal.firefox.com/success.txt" &
+            else
+                notify-send "🦊 SnowFox" "Bereits verbunden mit: $SSID"
+            fi
             exit 0
         fi
 
-        # Bekannte Verbindung oder neue?
+        # Sicherheit des gewählten Netzwerks prüfen
+        SECURITY=$(nmcli -f SSID,SECURITY device wifi list | grep "^${SSID} " | awk '{print $NF}' | head -1)
+
+        # Bekannte Verbindung
         if nmcli connection show "$SSID" &>/dev/null; then
             nmcli connection up "$SSID" && \
                 notify-send "🦊 SnowFox" "Verbunden mit: $SSID" || \
                 notify-send "🦊 SnowFox" "Verbindung fehlgeschlagen"
+
+        # Offenes Netzwerk (kein Passwort)
+        elif [[ "$SECURITY" == "--" || "$CHOICE" == *"OPEN"* ]]; then
+            notify-send "🦊 SnowFox" "Verbinde mit offenem Netzwerk: $SSID"
+            nmcli device wifi connect "$SSID" && {
+                sleep 2
+                # Captive Portal prüfen und Browser öffnen
+                CAPTIVE=$(curl -s --max-time 3 -o /dev/null -w "%{http_code}" http://detectportal.firefox.com/success.txt)
+                if [[ "$CAPTIVE" != "200" ]]; then
+                    notify-send "🦊 SnowFox" "Captive Portal erkannt — Browser wird geöffnet"
+                    brave-browser "http://captive.apple.com" &
+                else
+                    notify-send "🦊 SnowFox" "Verbunden mit: $SSID"
+                fi
+            } || notify-send "🦊 SnowFox" "Verbindung fehlgeschlagen"
+
+        # Verschlüsseltes Netzwerk — Passwort abfragen
         else
-            # Passwort abfragen via Wofi
             PASS=$(echo "" | wofi --show dmenu \
                 --prompt "Passwort für $SSID" \
                 --width 400 --height 100 \
@@ -98,7 +118,7 @@ case "$CHOICE" in
                     notify-send "🦊 SnowFox" "Verbunden mit: $SSID" || \
                     notify-send "🦊 SnowFox" "Verbindung fehlgeschlagen — falsches Passwort?"
             else
-                # Offenes Netzwerk
+                # Leeres Passwort — als offenes Netzwerk behandeln
                 nmcli device wifi connect "$SSID" && \
                     notify-send "🦊 SnowFox" "Verbunden mit: $SSID" || \
                     notify-send "🦊 SnowFox" "Verbindung fehlgeschlagen"
