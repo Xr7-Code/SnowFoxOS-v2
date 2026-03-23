@@ -4,12 +4,15 @@
 # ============================================================
 
 # Verfügbare WLANs scannen
-NETWORKS=$(nmcli -f SSID,SIGNAL,SECURITY,IN-USE device wifi list 2>/dev/null | tail -n +2 | awk '
-{
-    inuse = ($4 == "*") ? "✓ " : "  "
-    security = ($3 == "--") ? "OPEN" : $3
-    printf "%s%-35s %3s%%  %s\n", inuse, $1, $2, security
-}')
+NETWORKS=$(nmcli -f IN-USE,SSID,SIGNAL,SECURITY device wifi list 2>/dev/null | tail -n +2 | while IFS= read -r line; do
+    INUSE=$(echo "$line" | awk '{print $1}')
+    SSID=$(echo "$line" | awk '{print $2}')
+    SIGNAL=$(echo "$line" | awk '{print $3}')
+    SECURITY=$(echo "$line" | awk '{print $4}')
+    ICON=$([ "$INUSE" = "*" ] && echo "✓" || echo " ")
+    SEC_LABEL=$([ "$SECURITY" = "--" ] && echo "OPEN" || echo "$SECURITY")
+    printf "%s %-30s %3s%%  %s\n" "$ICON" "$SSID" "$SIGNAL" "$SEC_LABEL"
+done)
 
 if [[ -z "$NETWORKS" ]]; then
     notify-send "SnowFox Netzwerk" "Keine WLANs gefunden — ist WiFi aktiv?"
@@ -64,8 +67,8 @@ case "$CHOICE" in
         exit 0
         ;;
     *)
-        # SSID extrahieren
-        SSID=$(echo "$CHOICE" | sed 's/^[✓ ]*//' | awk '{print $1}' | xargs)
+        # SSID extrahieren — zweites Wort (erstes ist das ✓ oder Leerzeichen Icon)
+        SSID=$(echo "$CHOICE" | awk '{print $2}' | xargs)
         [[ -z "$SSID" ]] && exit 0
 
         # Prüfen ob bereits verbunden
@@ -126,3 +129,4 @@ case "$CHOICE" in
         fi
         ;;
 esac
+
