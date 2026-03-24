@@ -63,10 +63,26 @@ sudo -u "$TARGET_USER" xdg-user-dirs-update
 success "System aktualisiert"
 
 # ============================================================
-# SCHRITT 2 — GPU-Erkennung & Treiber
+# SCHRITT 2 — GPU-Erkennung, Treiber & 32-Bit (Multi-Arch)
 # ============================================================
-step "2/8 — GPU-Erkennung & Treiber"
+step "2/8 — GPU-Erkennung & Treiber (inkl. 32-Bit für Steam)"
 
+# 1. Multi-Architektur für 32-Bit aktivieren (Essentiell für Steam/Wine)
+info "Aktiviere 32-Bit Architektur (i386)..."
+dpkg --add-architecture i386
+
+# 2. Repositories erweitern (contrib, non-free, non-free-firmware)
+info "Konfiguriere Debian Repositories..."
+# Dieser Befehl fügt die Sektionen sicher an alle deb-Zeilen an, falls sie fehlen
+sed -i '/^deb .* main/ s/$/ contrib non-free non-free-firmware/' /etc/apt/sources.list
+# Säuberung falls doppelt vorhanden
+sed -i 's/non-free-firmware non-free-firmware/non-free-firmware/g' /etc/apt/sources.list
+sed -i 's/non-free non-free/non-free/g' /etc/apt/sources.list
+sed -i 's/contrib contrib/contrib/g' /etc/apt/sources.list
+
+apt-get update -qq
+
+# 3. Hardware-Erkennung
 GPU_INFO=$(lspci | grep -iE 'vga|3d|display')
 HAS_NVIDIA=false
 HAS_AMD=false
@@ -74,49 +90,60 @@ IS_HYBRID=false
 
 echo "$GPU_INFO" | grep -qi "nvidia" && HAS_NVIDIA=true && info "Nvidia GPU gefunden"
 echo "$GPU_INFO" | grep -qi "amd\|radeon\|advanced micro" && HAS_AMD=true && info "AMD GPU gefunden"
-$HAS_NVIDIA && $HAS_AMD && IS_HYBRID=true && warn "Hybrid-GPU (AMD + Nvidia) — envycontrol wird installiert"
+[[ "$HAS_NVIDIA" = true && "$HAS_AMD" = true ]] && IS_HYBRID=true && warn "Hybrid-GPU (AMD + Nvidia) erkannt"
 
+# 4. AMD Treiber Installation (inkl. 32-bit für Steam)
 if $HAS_AMD; then
-    apt-get install -y firmware-amd-graphics libgl1-mesa-dri mesa-vulkan-drivers
+    info "Installiere AMD Treiber & Mesa (64/32-bit)..."
+    apt-get install -y \
+        firmware-amd-graphics \
+        libgl1-mesa-dri libgl1-mesa-dri:i386 \
+        mesa-vulkan-drivers mesa-vulkan-drivers:i386 \
+        libva-mesa-driver libva-mesa-driver:i386
     success "AMD Treiber installiert"
 fi
 
+# 5. Nvidia Treiber Installation (inkl. 32-bit für Steam)
 if $HAS_NVIDIA; then
-    info "Konfiguriere Repositories für Nvidia..."
-    # Sicherstellen, dass contrib, non-free und non-free-firmware aktiv sind
-    # Wir suchen nach Zeilen, die mit 'deb' beginnen und hängen die Sektionen an, falls sie fehlen
-    sed -i '/^deb .* main/ s/$/ contrib non-free non-free-firmware/' /etc/apt/sources.list
-    # Doppelte Einträge bereinigen (falls das Skript zweimal läuft)
-    sed -i 's/contrib non-free non-free-firmware contrib non-free non-free-firmware/contrib non-free non-free-firmware/g' /etc/apt/sources.list
+    info "Installiere Nvidia Treiber (64/32-bit)..."
+    apt-get install -y \
+        nvidia-driver \
+        nvidia-driver-libs:i386 \
+        firmware-misc-nonfree \
+        libgbm1 libnvidia-egl-wayland1
     
-    apt-get update -qq
-    
-    info "Installiere Nvidia-Treiber..."
-    apt-get install -y nvidia-driver firmware-misc-nonfree || error "Nvidia-Paket nicht gefunden. Prüfe /etc/apt/sources.list manuell!"
-    
-    apt-get install -y libgbm1 libnvidia-egl-wayland1 2>/dev/null || true
+    # WICHTIG für Sway/Wayland: Kernel Mode Setting (KMS) aktivieren
+    info "Aktiviere Nvidia DRM Modesetting für Wayland..."
+    if [ -f /etc/default/grub ]; then
+        if ! grep -q "nvidia-drm.modeset=1" /etc/default/grub; then
+            sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&nvidia-drm.modeset=1 /' /etc/default/grub
+            update-grub
+            info "GRUB aktualisiert: nvidia-drm.modeset=1 hinzugefügt."
+        fi
+    fi
     success "Nvidia Treiber installiert"
 fi
 
+# 6. Hybrid-Management (envycontrol)
 if $IS_HYBRID; then
+    info "Installiere envycontrol für Hybrid-Grafik..."
     apt-get install -y python3 python3-pip
-    pip3 install envycontrol --break-system-packages 2>/dev/null || \
-        pip3 install envycontrol 2>/dev/null || \
-        warn "envycontrol nicht installierbar — manuell: pip3 install envycontrol"
+    pip3 install envycontrol --break-system-packages --quiet 2>/dev/null || true
+    
     if command -v envycontrol &>/dev/null; then
-        envycontrol -s nvidia 2>/dev/null && \
-            success "envycontrol: Nvidia-Modus aktiviert" || \
-            warn "envycontrol konnte Nvidia-Modus nicht setzen — manuell: sudo envycontrol -s nvidia"
-        echo ""
-        warn "Hybrid-GPU erkannt: Nvidia-Modus wurde aktiviert."
-        warn "Alle Monitore müssen an die Nvidia-GPU angeschlossen sein."
-        warn "Monitore am Motherboard-Ausgang (iGPU) werden nicht angezeigt."
-        echo ""
+        # Wir setzen standardmäßig auf 'nvidia', da Sway auf Hybrid-Laptops 
+        # oft Probleme mit der iGPU-Weiterleitung hat.
+        envycontrol -s nvidia --force 2>/dev/null
+        success "envycontrol: Nvidia-Modus (Performance) aktiviert"
     fi
 fi
 
+# 7. Fallback für reine Intel-Systeme
 if ! $HAS_NVIDIA && ! $HAS_AMD; then
-    apt-get install -y libgl1-mesa-dri mesa-vulkan-drivers 2>/dev/null || true
+    info "Keine dedizierte GPU gefunden. Installiere Standard-Mesa-Treiber..."
+    apt-get install -y \
+        libgl1-mesa-dri libgl1-mesa-dri:i386 \
+        mesa-vulkan-drivers mesa-vulkan-drivers:i386
 fi
 
 # ============================================================
