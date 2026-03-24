@@ -82,10 +82,18 @@ if $HAS_AMD; then
 fi
 
 if $HAS_NVIDIA; then
-    grep -q "non-free" /etc/apt/sources.list || \
-        sed -i 's/main$/main contrib non-free non-free-firmware/' /etc/apt/sources.list
+    info "Konfiguriere Repositories für Nvidia..."
+    # Sicherstellen, dass contrib, non-free und non-free-firmware aktiv sind
+    # Wir suchen nach Zeilen, die mit 'deb' beginnen und hängen die Sektionen an, falls sie fehlen
+    sed -i '/^deb .* main/ s/$/ contrib non-free non-free-firmware/' /etc/apt/sources.list
+    # Doppelte Einträge bereinigen (falls das Skript zweimal läuft)
+    sed -i 's/contrib non-free non-free-firmware contrib non-free non-free-firmware/contrib non-free non-free-firmware/g' /etc/apt/sources.list
+    
     apt-get update -qq
-    apt-get install -y nvidia-driver firmware-misc-nonfree
+    
+    info "Installiere Nvidia-Treiber..."
+    apt-get install -y nvidia-driver firmware-misc-nonfree || error "Nvidia-Paket nicht gefunden. Prüfe /etc/apt/sources.list manuell!"
+    
     apt-get install -y libgbm1 libnvidia-egl-wayland1 2>/dev/null || true
     success "Nvidia Treiber installiert"
 fi
