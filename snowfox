@@ -568,33 +568,47 @@ cmd_battery() {
     echo -e "${GRAY}  Status:     ${BOLD}${STATUS_ICON}${RESET}"
     echo -e "${GRAY}  Ladestand:  ${CAP_COLOR}${BOLD}${CAPACITY}%${RESET}"
 
-    # Energie in Watt
+    # Energie in Watt — power_now oder current_now * voltage_now
+    POWER_UW=0
     if [[ -f "$BAT_PATH/power_now" ]]; then
-        POWER_UW=$(cat "$BAT_PATH/power_now")
+        POWER_UW=$(cat "$BAT_PATH/power_now" 2>/dev/null || echo 0)
+    elif [[ -f "$BAT_PATH/current_now" && -f "$BAT_PATH/voltage_now" ]]; then
+        CURRENT=$(cat "$BAT_PATH/current_now" 2>/dev/null || echo 0)
+        VOLTAGE=$(cat "$BAT_PATH/voltage_now" 2>/dev/null || echo 0)
+        POWER_UW=$(echo "$CURRENT * $VOLTAGE / 1000000" | bc 2>/dev/null || echo 0)
+    fi
+    if [[ "$POWER_UW" -gt 0 ]]; then
         POWER_W=$(echo "scale=1; $POWER_UW / 1000000" | bc 2>/dev/null || echo "?")
         echo -e "${GRAY}  Verbrauch:  ${BOLD}${POWER_W}W${RESET}"
     fi
 
-    # Kapazität in Wh
+    # Kapazität in Wh — energy oder charge*voltage
+    ENERGY_NOW=0
+    ENERGY_FULL=0
     if [[ -f "$BAT_PATH/energy_full" && -f "$BAT_PATH/energy_now" ]]; then
         ENERGY_FULL=$(cat "$BAT_PATH/energy_full")
         ENERGY_NOW=$(cat "$BAT_PATH/energy_now")
+    elif [[ -f "$BAT_PATH/charge_full" && -f "$BAT_PATH/charge_now" && -f "$BAT_PATH/voltage_now" ]]; then
+        VOLTAGE=$(cat "$BAT_PATH/voltage_now")
+        CHARGE_FULL=$(cat "$BAT_PATH/charge_full")
+        CHARGE_NOW=$(cat "$BAT_PATH/charge_now")
+        ENERGY_FULL=$(echo "$CHARGE_FULL * $VOLTAGE / 1000000" | bc 2>/dev/null || echo 0)
+        ENERGY_NOW=$(echo "$CHARGE_NOW * $VOLTAGE / 1000000" | bc 2>/dev/null || echo 0)
+    fi
+    if [[ "$ENERGY_FULL" -gt 0 ]]; then
         ENERGY_FULL_WH=$(echo "scale=1; $ENERGY_FULL / 1000000" | bc 2>/dev/null || echo "?")
         ENERGY_NOW_WH=$(echo "scale=1; $ENERGY_NOW / 1000000" | bc 2>/dev/null || echo "?")
         echo -e "${GRAY}  Energie:    ${BOLD}${ENERGY_NOW_WH}Wh / ${ENERGY_FULL_WH}Wh${RESET}"
     fi
 
     # Restlaufzeit schätzen
-    if [[ -f "$BAT_PATH/power_now" && -f "$BAT_PATH/energy_now" ]]; then
-        POWER_UW=$(cat "$BAT_PATH/power_now")
-        ENERGY_NOW=$(cat "$BAT_PATH/energy_now")
-        if [[ "$POWER_UW" -gt 0 && "$STATUS" == "Discharging" ]]; then
+    if [[ "$POWER_UW" -gt 0 && "$ENERGY_NOW" -gt 0 ]]; then
+        if [[ "$STATUS" == "Discharging" ]]; then
             MINUTES=$(echo "scale=0; ($ENERGY_NOW / $POWER_UW) * 60" | bc 2>/dev/null)
             HOURS=$((MINUTES / 60))
             MINS=$((MINUTES % 60))
             echo -e "${GRAY}  Restzeit:   ${BOLD}~${HOURS}h ${MINS}m${RESET}"
-        elif [[ "$POWER_UW" -gt 0 && "$STATUS" == "Charging" ]]; then
-            ENERGY_FULL=$(cat "$BAT_PATH/energy_full")
+        elif [[ "$STATUS" == "Charging" && "$ENERGY_FULL" -gt 0 ]]; then
             ENERGY_MISSING=$((ENERGY_FULL - ENERGY_NOW))
             MINUTES=$(echo "scale=0; ($ENERGY_MISSING / $POWER_UW) * 60" | bc 2>/dev/null)
             HOURS=$((MINUTES / 60))
