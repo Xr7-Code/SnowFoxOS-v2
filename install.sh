@@ -67,19 +67,25 @@ success "System aktualisiert"
 # ============================================================
 step "2/8 — GPU-Erkennung & Treiber (inkl. 32-Bit für Steam)"
 
-# 1. Multi-Architektur für 32-Bit aktivieren (Essentiell für Steam/Wine)
+# 1. 32-Bit Architektur hinzufügen (zwingend für Steam/Wine)
 info "Aktiviere 32-Bit Architektur (i386)..."
 dpkg --add-architecture i386
 
-# 2. Repositories erweitern (contrib, non-free, non-free-firmware)
-info "Konfiguriere Debian Repositories..."
-# Dieser Befehl fügt die Sektionen sicher an alle deb-Zeilen an, falls sie fehlen
-sed -i '/^deb .* main/ s/$/ contrib non-free non-free-firmware/' /etc/apt/sources.list
-# Säuberung falls doppelt vorhanden
-sed -i 's/non-free-firmware non-free-firmware/non-free-firmware/g' /etc/apt/sources.list
-sed -i 's/non-free non-free/non-free/g' /etc/apt/sources.list
-sed -i 's/contrib contrib/contrib/g' /etc/apt/sources.list
+# 2. Repositories sauber auf Debian 12 (Bookworm) Standard setzen
+# Wir schreiben die sources.list neu, um Fehler durch 'sed' zu vermeiden
+info "Konfiguriere Debian Repositories (main contrib non-free non-free-firmware)..."
+cat > /etc/apt/sources.list << 'EOF'
+deb http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
+deb-src http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
 
+deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+deb-src http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+
+deb http://deb.debian.org/debian/ bookworm-updates main contrib non-free non-free-firmware
+deb-src http://deb.debian.org/debian/ bookworm-updates main contrib non-free non-free-firmware
+EOF
+
+# WICHTIG: Paketlisten nach Repository-Änderung neu laden
 apt-get update -qq
 
 # 3. Hardware-Erkennung
@@ -107,11 +113,13 @@ fi
 # 5. Nvidia Treiber Installation (inkl. 32-bit für Steam)
 if $HAS_NVIDIA; then
     info "Installiere Nvidia Treiber (64/32-bit)..."
+    # Die Paketnamen sind hier exakt für Debian 12 korrigiert
     apt-get install -y \
         nvidia-driver \
         nvidia-driver-libs:i386 \
         firmware-misc-nonfree \
-        libgbm1 libnvidia-egl-wayland1
+        libgbm1 \
+        libnvidia-egl-wayland1
     
     # WICHTIG für Sway/Wayland: Kernel Mode Setting (KMS) aktivieren
     info "Aktiviere Nvidia DRM Modesetting für Wayland..."
@@ -129,23 +137,25 @@ fi
 if $IS_HYBRID; then
     info "Installiere envycontrol für Hybrid-Grafik..."
     apt-get install -y python3 python3-pip
+    # --break-system-packages wird in Debian 12 für globale pip-installs benötigt
     pip3 install envycontrol --break-system-packages --quiet 2>/dev/null || true
     
     if command -v envycontrol &>/dev/null; then
-        # Wir setzen standardmäßig auf 'nvidia', da Sway auf Hybrid-Laptops 
-        # oft Probleme mit der iGPU-Weiterleitung hat.
+        # Setzt Nvidia als primäre GPU für maximale Kompatibilität mit Sway
         envycontrol -s nvidia --force 2>/dev/null
         success "envycontrol: Nvidia-Modus (Performance) aktiviert"
     fi
 fi
 
-# 7. Fallback für reine Intel-Systeme
+# 7. Fallback für reine Intel/Standard-Systeme
 if ! $HAS_NVIDIA && ! $HAS_AMD; then
-    info "Keine dedizierte GPU gefunden. Installiere Standard-Mesa-Treiber..."
+    info "Installiere Standard-Mesa-Treiber (Intel/Generic)..."
     apt-get install -y \
         libgl1-mesa-dri libgl1-mesa-dri:i386 \
-        mesa-vulkan-drivers mesa-vulkan-drivers:i386
+        mesa-vulkan-drivers mesa-vulkan-drivers:i386 \
+        intel-media-va-driver-non-free 2>/dev/null || apt-get install -y intel-media-va-driver
 fi
+
 
 # ============================================================
 # SCHRITT 3 — Sway & Wayland Desktop
