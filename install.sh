@@ -65,15 +65,15 @@ success "System aktualisiert"
 # ============================================================
 # SCHRITT 2 — GPU-Erkennung, Treiber & 32-Bit (Multi-Arch)
 # ============================================================
-step "2/8 — GPU-Erkennung & Treiber (inkl. 32-Bit für Steam)"
+step "2/8 — GPU-Erkennung & Treiber (Nvidia-Spezial)"
 
-# 1. 32-Bit Architektur hinzufügen (zwingend für Steam/Wine)
+# 1. Multi-Architektur aktivieren (Essentiell für Steam/Wine)
 info "Aktiviere 32-Bit Architektur (i386)..."
 dpkg --add-architecture i386
 
 # 2. Repositories sauber auf Debian 12 (Bookworm) Standard setzen
-# Wir schreiben die sources.list neu, um Fehler durch 'sed' zu vermeiden
-info "Konfiguriere Debian Repositories (main contrib non-free non-free-firmware)..."
+# Schreibt die sources.list neu, um sicherzustellen, dass non-free-firmware aktiv ist
+info "Konfiguriere Debian Repositories..."
 cat > /etc/apt/sources.list << 'EOF'
 deb http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
 deb-src http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
@@ -85,7 +85,7 @@ deb http://deb.debian.org/debian/ bookworm-updates main contrib non-free non-fre
 deb-src http://deb.debian.org/debian/ bookworm-updates main contrib non-free non-free-firmware
 EOF
 
-# WICHTIG: Paketlisten nach Repository-Änderung neu laden
+# Paketlisten neu laden
 apt-get update -qq
 
 # 3. Hardware-Erkennung
@@ -112,8 +112,7 @@ fi
 
 # 5. Nvidia Treiber Installation (inkl. 32-bit für Steam)
 if $HAS_NVIDIA; then
-    # 3. Treiber-Installation (64-bit und 32-bit für Steam)
-    info "Installiere Nvidia-Treiber & Bibliotheken..."
+    info "Installiere Nvidia-Treiber & Komponenten (64/32-bit)..."
     apt-get install -y \
         nvidia-driver \
         nvidia-driver-libs:i386 \
@@ -123,53 +122,44 @@ if $HAS_NVIDIA; then
         nvidia-vulkan-icd \
         nvidia-vulkan-icd:i386
 
-    # 4. Nouveau Blacklist (Verhindert den Lade-Konflikt)
+    # 5a. Nouveau Blacklist (Verhindert, dass der Open-Source Treiber die GPU blockiert)
     info "Deaktiviere Nouveau-Treiber..."
     cat > /etc/modprobe.d/blacklist-nouveau.conf << 'EOF'
 blacklist nouveau
 options nouveau modeset=0
 EOF
 
-    # 5. Kernel-Parameter für Wayland/Sway (KMS)
-    info "Konfiguriere Kernel-Modesetting (KMS)..."
+    # 5b. Kernel-Parameter für Wayland/Sway (KMS)
+    info "Aktiviere Nvidia DRM Modesetting..."
     if [ -f /etc/default/grub ]; then
         if ! grep -q "nvidia-drm.modeset=1" /etc/default/grub; then
             sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&nvidia-drm.modeset=1 /' /etc/default/grub
             update-grub
+            info "GRUB aktualisiert: nvidia-drm.modeset=1 hinzugefügt."
         fi
     fi
 
-    # 6. Initramfs aktualisieren (Wichtig, damit Blacklist & KMS beim Booten greifen)
+    # 5c. Initramfs aktualisieren (Wichtig, damit Treiber-Änderungen beim Booten greifen)
     info "Aktualisiere initramfs (bitte warten)..."
     update-initramfs -u
-
-    # 7. Umgebungsvariablen für Sway/Nvidia (Mauszeiger-Fix)
-    info "Setze Wayland-Umgebungsvariablen für Nvidia..."
-    cat >> /etc/profile.d/snowfox-env.sh << 'EOF'
-export WLR_NO_HARDWARE_CURSORS=1
-export LIBVA_DRIVER_NAME=nvidia
-export __GLX_VENDOR_LIBRARY_NAME=nvidia
-EOF
-
-    success "Nvidia-Setup abgeschlossen. Nouveau ist deaktiviert."
-    warn "Ein NEUSTART ist zwingend erforderlich!"
+    
+    success "Nvidia Treiber & Konfiguration abgeschlossen"
 fi
 
 # 6. Hybrid-Management (envycontrol)
 if $IS_HYBRID; then
     info "Installiere envycontrol für Hybrid-Grafik..."
     apt-get install -y python3 python3-pip
-    # --break-system-packages wird in Debian 12 für globale pip-installs benötigt
     pip3 install envycontrol --break-system-packages --quiet 2>/dev/null || true
     
     if command -v envycontrol &>/dev/null; then
-        # Setzt Nvidia als primäre GPU für maximale Kompatibilität mit Sway
+        # Erzwingt Nvidia-Modus für stabile Wayland-Performance
         envycontrol -s nvidia --force 2>/dev/null
-        success "envycontrol: Nvidia-Modus (Performance) aktiviert"
+        success "envycontrol: Nvidia-Modus aktiviert"
     fi
 fi
 
-# 7. Fallback für reine Intel/Standard-Systeme
+# 7. Fallback für Intel / andere GPUs
 if ! $HAS_NVIDIA && ! $HAS_AMD; then
     info "Installiere Standard-Mesa-Treiber (Intel/Generic)..."
     apt-get install -y \
@@ -177,6 +167,17 @@ if ! $HAS_NVIDIA && ! $HAS_AMD; then
         mesa-vulkan-drivers mesa-vulkan-drivers:i386 \
         intel-media-va-driver-non-free 2>/dev/null || apt-get install -y intel-media-va-driver
 fi
+
+# 8. Umgebungsvariablen für Wayland/Sway (Nvidia-Mauszeiger Fix)
+info "Konfiguriere Wayland-Umgebungsvariablen..."
+cat > /etc/profile.d/snowfox-gpu.sh << 'EOF'
+# Fix für unsichtbaren Mauszeiger auf Nvidia
+export WLR_NO_HARDWARE_CURSORS=1
+# Hardware-Beschleunigung für Wayland erzwingen
+export LIBVA_DRIVER_NAME=nvidia
+export __GLX_VENDOR_LIBRARY_NAME=nvidia
+EOF
+chmod +x /etc/profile.d/snowfox-gpu.sh
 
 
 # ============================================================
