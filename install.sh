@@ -250,6 +250,14 @@ cat > "$BRAVE_CONFIG_DIR/Preferences" << 'EOF'
 EOF
 chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/BraveSoftware"
 fi
+
+# Brave Wayland-Flags — für natives Tiling unter Sway
+cat > "$TARGET_HOME/.config/brave-flags.conf" << 'EOF'
+--enable-features=UseOzonePlatform
+--ozone-platform=wayland
+--enable-wayland-ime
+EOF
+chown "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/brave-flags.conf"
 success "Brave Browser installiert"
 
 # ============================================================
