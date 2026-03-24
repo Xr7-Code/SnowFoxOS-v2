@@ -112,25 +112,47 @@ fi
 
 # 5. Nvidia Treiber Installation (inkl. 32-bit für Steam)
 if $HAS_NVIDIA; then
-    info "Installiere Nvidia Treiber (64/32-bit)..."
-    # Die Paketnamen sind hier exakt für Debian 12 korrigiert
+    # 3. Treiber-Installation (64-bit und 32-bit für Steam)
+    info "Installiere Nvidia-Treiber & Bibliotheken..."
     apt-get install -y \
         nvidia-driver \
         nvidia-driver-libs:i386 \
         firmware-misc-nonfree \
         libgbm1 \
-        libnvidia-egl-wayland1
-    
-    # WICHTIG für Sway/Wayland: Kernel Mode Setting (KMS) aktivieren
-    info "Aktiviere Nvidia DRM Modesetting für Wayland..."
+        libnvidia-egl-wayland1 \
+        nvidia-vulkan-icd \
+        nvidia-vulkan-icd:i386
+
+    # 4. Nouveau Blacklist (Verhindert den Lade-Konflikt)
+    info "Deaktiviere Nouveau-Treiber..."
+    cat > /etc/modprobe.d/blacklist-nouveau.conf << 'EOF'
+blacklist nouveau
+options nouveau modeset=0
+EOF
+
+    # 5. Kernel-Parameter für Wayland/Sway (KMS)
+    info "Konfiguriere Kernel-Modesetting (KMS)..."
     if [ -f /etc/default/grub ]; then
         if ! grep -q "nvidia-drm.modeset=1" /etc/default/grub; then
             sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&nvidia-drm.modeset=1 /' /etc/default/grub
             update-grub
-            info "GRUB aktualisiert: nvidia-drm.modeset=1 hinzugefügt."
         fi
     fi
-    success "Nvidia Treiber installiert"
+
+    # 6. Initramfs aktualisieren (Wichtig, damit Blacklist & KMS beim Booten greifen)
+    info "Aktualisiere initramfs (bitte warten)..."
+    update-initramfs -u
+
+    # 7. Umgebungsvariablen für Sway/Nvidia (Mauszeiger-Fix)
+    info "Setze Wayland-Umgebungsvariablen für Nvidia..."
+    cat >> /etc/profile.d/snowfox-env.sh << 'EOF'
+export WLR_NO_HARDWARE_CURSORS=1
+export LIBVA_DRIVER_NAME=nvidia
+export __GLX_VENDOR_LIBRARY_NAME=nvidia
+EOF
+
+    success "Nvidia-Setup abgeschlossen. Nouveau ist deaktiviert."
+    warn "Ein NEUSTART ist zwingend erforderlich!"
 fi
 
 # 6. Hybrid-Management (envycontrol)
