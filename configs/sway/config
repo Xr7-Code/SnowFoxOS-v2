@@ -73,7 +73,7 @@ exec env NO_AT_BRIDGE=1 waybar
 # ── Keyboard Shortcuts ──────────────────────────────────────
 bindsym $mod+Return exec $term
 bindsym $mod+Space exec pkill wofi || wofi --show drun --prompt "Suchen..."
-bindsym $mod+b exec brave-browser
+bindsym $mod+b exec brave-browser --enable-features=UseOzonePlatform --ozone-platform=wayland
 bindsym $mod+e exec thunar
 bindsym $mod+l exec swaylock -f
 bindsym $mod+n exec ~/.config/sway/snowfox-network.sh
