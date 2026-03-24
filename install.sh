@@ -99,7 +99,8 @@ if $HAS_AMD; then
         firmware-amd-graphics \
         libgl1-mesa-dri libgl1-mesa-dri:i386 \
         mesa-vulkan-drivers mesa-vulkan-drivers:i386 \
-        libva-mesa-driver libva-mesa-driver:i386
+        mesa-va-drivers mesa-va-drivers:i386 \
+        mesa-vdpau-drivers mesa-vdpau-drivers:i386
     success "AMD Treiber installiert"
 fi
 
