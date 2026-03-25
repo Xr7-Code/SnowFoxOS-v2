@@ -110,52 +110,109 @@ if $HAS_AMD; then
     success "AMD Treiber installiert"
 fi
 
-# 5. Nvidia Treiber Installation (inkl. 32-bit für Steam)
+# ============================================================
+# NVIDIA — stabile Installation für Debian 12 + Wayland
+# ============================================================
 if $HAS_NVIDIA; then
-    info "Installiere Nvidia-Treiber & Komponenten (64/32-bit)..."
+    info "Installiere Nvidia-Treiber (Wayland-stabil, inkl. 32-bit)..."
+
+    # ------------------------------------------------------------
+    # 1. Kernel-Header sicherstellen (wichtig für DKMS)
+    # ------------------------------------------------------------
+    apt-get install -y linux-headers-$(uname -r)
+
+    # ------------------------------------------------------------
+    # 2. Nvidia Treiber + vollständige Userspace Libs
+    # ------------------------------------------------------------
     apt-get install -y \
         nvidia-driver \
-        nvidia-driver-libs:i386 \
+        nvidia-kernel-dkms \
         firmware-misc-nonfree \
-        libgbm1 \
-        libnvidia-egl-wayland1 \
+        libnvidia-gl1 \
+        libnvidia-gl1:i386 \
+        libnvidia-egl1 \
+        libnvidia-egl1:i386 \
+        libnvidia-encode1 \
+        libnvidia-decode1 \
+        libnvidia-fbc1 \
         nvidia-vulkan-icd \
-        nvidia-vulkan-icd:i386
+        nvidia-vulkan-icd:i386 \
+        libgbm1 \
+        libnvidia-egl-wayland1
 
-    # 5a. Nouveau Blacklist (Verhindert, dass der Open-Source Treiber die GPU blockiert)
-    info "Deaktiviere Nouveau-Treiber..."
+    # ------------------------------------------------------------
+    # 3. Nouveau vollständig deaktivieren
+    # ------------------------------------------------------------
+    info "Deaktiviere Nouveau vollständig..."
+
     cat > /etc/modprobe.d/blacklist-nouveau.conf << 'EOF'
 blacklist nouveau
 options nouveau modeset=0
+install nouveau /bin/false
 EOF
 
-    # 5b. Kernel-Parameter für Wayland/Sway (KMS)
-    info "Aktiviere Nvidia DRM Modesetting..."
+    # ------------------------------------------------------------
+    # 4. DRM KMS + stabile Kernel-Parameter
+    # ------------------------------------------------------------
+    info "Setze Kernel-Parameter für Nvidia..."
+
     if [ -f /etc/default/grub ]; then
         if ! grep -q "nvidia-drm.modeset=1" /etc/default/grub; then
-            sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&nvidia-drm.modeset=1 /' /etc/default/grub
-            update-grub
-            info "GRUB aktualisiert: nvidia-drm.modeset=1 hinzugefügt."
+            sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&nvidia-drm.modeset=1 nvidia.NVreg_PreserveVideoMemoryAllocations=1 /' /etc/default/grub
         fi
+        update-grub
     fi
 
-    # 5c. Initramfs aktualisieren (Wichtig, damit Treiber-Änderungen beim Booten greifen)
-    info "Aktualisiere initramfs (bitte warten)..."
-    update-initramfs -u
-    
-    success "Nvidia Treiber & Konfiguration abgeschlossen"
+    # ------------------------------------------------------------
+    # 5. Initramfs neu bauen (ALLE Kernel)
+    # ------------------------------------------------------------
+    info "Baue initramfs neu (alle Kernel)..."
+    update-initramfs -u -k all
+
+    # ------------------------------------------------------------
+    # 6. Wayland / Sway ENV Fixes (systemweit)
+    # ------------------------------------------------------------
+    info "Setze Wayland-Umgebungsvariablen..."
+
+    cat > /etc/profile.d/snowfox-gpu.sh << 'EOF'
+# Nvidia + Wayland Fixes
+
+# Cursor Fix
+export WLR_NO_HARDWARE_CURSORS=1
+
+# Renderer stabilisieren
+export WLR_RENDERER=vulkan
+export GBM_BACKEND=nvidia-drm
+
+# Nvidia GL / Vulkan Routing
+export __GLX_VENDOR_LIBRARY_NAME=nvidia
+export __NV_PRIME_RENDER_OFFLOAD=1
+export __VK_LAYER_NV_optimus=NVIDIA_only
+
+# Video Acceleration
+export LIBVA_DRIVER_NAME=nvidia
+EOF
+
+    chmod +x /etc/profile.d/snowfox-gpu.sh
+
+    success "Nvidia Installation abgeschlossen"
 fi
 
-# 6. Hybrid-Management (envycontrol)
+# ------------------------------------------------------------
+# Hybrid GPU (Laptop) — konservativ & stabil
+# ------------------------------------------------------------
 if $IS_HYBRID; then
-    info "Installiere envycontrol für Hybrid-Grafik..."
+    warn "Hybrid-GPU erkannt (AMD/Intel + Nvidia)"
+
+    info "Installiere envycontrol (optional)..."
     apt-get install -y python3 python3-pip
     pip3 install envycontrol --break-system-packages --quiet 2>/dev/null || true
-    
+
     if command -v envycontrol &>/dev/null; then
-        # Erzwingt Nvidia-Modus für stabile Wayland-Performance
-        envycontrol -s nvidia --force 2>/dev/null
-        success "envycontrol: Nvidia-Modus aktiviert"
+        # WICHTIG: Stabilitätsmodus (kein Nvidia-Zwang)
+        envycontrol -s integrated 2>/dev/null || true
+        warn "Hybrid-Modus auf 'integrated' gesetzt (empfohlen für Wayland Stabilität)"
+        warn "Nvidia manuell aktivierbar mit: envycontrol -s nvidia"
     fi
 fi
 
