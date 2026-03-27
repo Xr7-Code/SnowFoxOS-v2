@@ -43,7 +43,20 @@ sleep 1
 # ============================================================
 # SCHRITT 1 — System aktualisieren
 # ============================================================
-step "1/8 — System aktualisieren"
+step "1/9 — System aktualisieren"
+
+# Repositories sauber setzen
+cat > /etc/apt/sources.list << 'EOF'
+deb http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
+deb-src http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
+deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+deb-src http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian/ bookworm-updates main contrib non-free non-free-firmware
+deb-src http://deb.debian.org/debian/ bookworm-updates main contrib non-free non-free-firmware
+EOF
+
+# 32-Bit für Steam aktivieren
+dpkg --add-architecture i386
 
 apt-get update -qq
 apt-get upgrade -y
@@ -57,190 +70,115 @@ apt-get install -y \
     xdg-utils \
     xdg-user-dirs \
     rfkill \
-    imagemagick
+    imagemagick \
+    bc
 
 sudo -u "$TARGET_USER" xdg-user-dirs-update
 success "System aktualisiert"
 
 # ============================================================
-# SCHRITT 2 — GPU-Erkennung, Treiber & 32-Bit (Multi-Arch)
+# SCHRITT 2 — GPU-Erkennung & Treiber
 # ============================================================
-step "2/8 — GPU-Erkennung & Treiber (Nvidia-Spezial)"
+step "2/9 — GPU-Erkennung & Treiber"
 
-# 1. Multi-Architektur aktivieren (Essentiell für Steam/Wine)
-info "Aktiviere 32-Bit Architektur (i386)..."
-dpkg --add-architecture i386
-
-# 2. Repositories sauber auf Debian 12 (Bookworm) Standard setzen
-# Schreibt die sources.list neu, um sicherzustellen, dass non-free-firmware aktiv ist
-info "Konfiguriere Debian Repositories..."
-cat > /etc/apt/sources.list << 'EOF'
-deb http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
-deb-src http://deb.debian.org/debian/ bookworm main contrib non-free non-free-firmware
-
-deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
-deb-src http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
-
-deb http://deb.debian.org/debian/ bookworm-updates main contrib non-free non-free-firmware
-deb-src http://deb.debian.org/debian/ bookworm-updates main contrib non-free non-free-firmware
-EOF
-
-# Paketlisten neu laden
-apt-get update -qq
-
-# 3. Hardware-Erkennung
 GPU_INFO=$(lspci | grep -iE 'vga|3d|display')
 HAS_NVIDIA=false
 HAS_AMD=false
+HAS_INTEL=false
 IS_HYBRID=false
 
 echo "$GPU_INFO" | grep -qi "nvidia" && HAS_NVIDIA=true && info "Nvidia GPU gefunden"
 echo "$GPU_INFO" | grep -qi "amd\|radeon\|advanced micro" && HAS_AMD=true && info "AMD GPU gefunden"
-[[ "$HAS_NVIDIA" = true && "$HAS_AMD" = true ]] && IS_HYBRID=true && warn "Hybrid-GPU (AMD + Nvidia) erkannt"
+echo "$GPU_INFO" | grep -qi "intel" && HAS_INTEL=true && info "Intel GPU gefunden"
+[[ "$HAS_NVIDIA" = true && ( "$HAS_AMD" = true || "$HAS_INTEL" = true ) ]] && IS_HYBRID=true && warn "Hybrid-GPU erkannt"
 
-# 4. AMD Treiber Installation (inkl. 32-bit für Steam)
-if $HAS_AMD; then
-    info "Installiere AMD Treiber & Mesa (64/32-bit)..."
+# AMD/Intel Mesa Treiber (immer installieren wenn vorhanden — auch auf Hybrid)
+if $HAS_AMD || $HAS_INTEL; then
     apt-get install -y \
-        firmware-amd-graphics \
         libgl1-mesa-dri libgl1-mesa-dri:i386 \
         mesa-vulkan-drivers mesa-vulkan-drivers:i386 \
-        mesa-va-drivers mesa-va-drivers:i386 \
-        mesa-vdpau-drivers mesa-vdpau-drivers:i386
-    success "AMD Treiber installiert"
+        mesa-va-drivers mesa-vdpau-drivers 2>/dev/null || true
+    $HAS_AMD && apt-get install -y firmware-amd-graphics 2>/dev/null || true
+    $HAS_INTEL && apt-get install -y intel-media-va-driver 2>/dev/null || true
+    success "Mesa/AMD/Intel Treiber installiert"
 fi
 
-# ============================================================
-# NVIDIA — stabile Installation für Debian 12 + Wayland
-# ============================================================
+# Nvidia Treiber
 if $HAS_NVIDIA; then
-    info "Installiere Nvidia-Treiber (Wayland-stabil, inkl. 32-bit)..."
-
-    # ------------------------------------------------------------
-    # 1. Kernel-Header sicherstellen (wichtig für DKMS)
-    # ------------------------------------------------------------
-    apt-get install -y linux-headers-$(uname -r)
-
-    # ------------------------------------------------------------
-    # 2. Nvidia Treiber + vollständige Userspace Libs
-    # ------------------------------------------------------------
+    apt-get install -y linux-headers-$(uname -r) 2>/dev/null || true
     apt-get install -y \
         nvidia-driver \
         nvidia-kernel-dkms \
         firmware-misc-nonfree \
-        libnvidia-gl1 \
-        libnvidia-gl1:i386 \
-        libnvidia-egl1 \
-        libnvidia-egl1:i386 \
-        libnvidia-encode1 \
-        libnvidia-decode1 \
-        libnvidia-fbc1 \
-        nvidia-vulkan-icd \
-        nvidia-vulkan-icd:i386 \
         libgbm1 \
-        libnvidia-egl-wayland1
+        libnvidia-egl-wayland1 \
+        nvidia-vulkan-icd \
+        nvidia-vulkan-icd:i386 2>/dev/null || true
 
-    # ------------------------------------------------------------
-    # 3. Nouveau vollständig deaktivieren
-    # ------------------------------------------------------------
-    info "Deaktiviere Nouveau vollständig..."
-
+    # Nouveau deaktivieren
     cat > /etc/modprobe.d/blacklist-nouveau.conf << 'EOF'
 blacklist nouveau
 options nouveau modeset=0
 install nouveau /bin/false
 EOF
 
-    # ------------------------------------------------------------
-    # 4. DRM KMS + stabile Kernel-Parameter
-    # ------------------------------------------------------------
-    info "Setze Kernel-Parameter für Nvidia..."
-
-    if [ -f /etc/default/grub ]; then
+    # DRM Modesetting für Wayland
+    if [[ -f /etc/default/grub ]]; then
         if ! grep -q "nvidia-drm.modeset=1" /etc/default/grub; then
-            sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&nvidia-drm.modeset=1 nvidia.NVreg_PreserveVideoMemoryAllocations=1 /' /etc/default/grub
+            sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&nvidia-drm.modeset=1 /' /etc/default/grub
+            update-grub 2>/dev/null || true
         fi
-        update-grub
     fi
+    update-initramfs -u -k all 2>/dev/null || true
 
-    # ------------------------------------------------------------
-    # 5. Initramfs neu bauen (ALLE Kernel)
-    # ------------------------------------------------------------
-    info "Baue initramfs neu (alle Kernel)..."
-    update-initramfs -u -k all
-
-    # ------------------------------------------------------------
-    # 6. Wayland / Sway ENV Fixes (systemweit)
-    # ------------------------------------------------------------
-    info "Setze Wayland-Umgebungsvariablen..."
-
-    cat > /etc/profile.d/snowfox-gpu.sh << 'EOF'
-# Nvidia + Wayland Fixes
-
-# Cursor Fix
+    # Nvidia Wayland ENV — nur auf reinen Nvidia Systemen
+    if ! $IS_HYBRID; then
+        cat > /etc/profile.d/snowfox-nvidia.sh << 'EOF'
 export WLR_NO_HARDWARE_CURSORS=1
-
-# Renderer stabilisieren
-export WLR_RENDERER=vulkan
 export GBM_BACKEND=nvidia-drm
-
-# Nvidia GL / Vulkan Routing
 export __GLX_VENDOR_LIBRARY_NAME=nvidia
-export __NV_PRIME_RENDER_OFFLOAD=1
-export __VK_LAYER_NV_optimus=NVIDIA_only
-
-# Video Acceleration
-export LIBVA_DRIVER_NAME=nvidia
 EOF
-
-    chmod +x /etc/profile.d/snowfox-gpu.sh
-
-    success "Nvidia Installation abgeschlossen"
+        chmod +x /etc/profile.d/snowfox-nvidia.sh
+    fi
+    success "Nvidia Treiber installiert"
 fi
 
-# ------------------------------------------------------------
-# Hybrid GPU (Laptop) — konservativ & stabil
-# ------------------------------------------------------------
+# Hybrid GPU — envycontrol, Nvidia-Modus
 if $IS_HYBRID; then
-    warn "Hybrid-GPU erkannt (AMD/Intel + Nvidia)"
-
-    info "Installiere envycontrol (optional)..."
     apt-get install -y python3 python3-pip
-    pip3 install envycontrol --break-system-packages --quiet 2>/dev/null || true
+    pip3 install envycontrol --break-system-packages 2>/dev/null || \
+        pip3 install envycontrol 2>/dev/null || \
+        warn "envycontrol nicht installierbar"
 
     if command -v envycontrol &>/dev/null; then
-        # WICHTIG: Stabilitätsmodus (kein Nvidia-Zwang)
-        envycontrol -s integrated 2>/dev/null || true
-        warn "Hybrid-Modus auf 'integrated' gesetzt (empfohlen für Wayland Stabilität)"
-        warn "Nvidia manuell aktivierbar mit: envycontrol -s nvidia"
+        envycontrol -s nvidia 2>/dev/null && \
+            success "envycontrol: Nvidia-Modus aktiviert" || \
+            warn "envycontrol konnte Nvidia-Modus nicht setzen"
+        # Cursor Fix für Hybrid
+        cat > /etc/profile.d/snowfox-hybrid.sh << 'EOF'
+export WLR_NO_HARDWARE_CURSORS=1
+EOF
+        chmod +x /etc/profile.d/snowfox-hybrid.sh
+        echo ""
+        warn "Hybrid-GPU: Alle Monitore an die Nvidia-Karte anschließen!"
+        warn "Motherboard-Ausgänge (iGPU) sind deaktiviert."
+        echo ""
     fi
 fi
 
-# 7. Fallback für Intel / andere GPUs
+# Kein Nvidia vorhanden — Intel/andere
 if ! $HAS_NVIDIA && ! $HAS_AMD; then
-    info "Installiere Standard-Mesa-Treiber (Intel/Generic)..."
     apt-get install -y \
         libgl1-mesa-dri libgl1-mesa-dri:i386 \
-        mesa-vulkan-drivers mesa-vulkan-drivers:i386 \
-        intel-media-va-driver-non-free 2>/dev/null || apt-get install -y intel-media-va-driver
+        mesa-vulkan-drivers mesa-vulkan-drivers:i386 2>/dev/null || true
 fi
 
-# 8. Umgebungsvariablen für Wayland/Sway (Nvidia-Mauszeiger Fix)
-info "Konfiguriere Wayland-Umgebungsvariablen..."
-cat > /etc/profile.d/snowfox-gpu.sh << 'EOF'
-# Fix für unsichtbaren Mauszeiger auf Nvidia
-export WLR_NO_HARDWARE_CURSORS=1
-# Hardware-Beschleunigung für Wayland erzwingen
-export LIBVA_DRIVER_NAME=nvidia
-export __GLX_VENDOR_LIBRARY_NAME=nvidia
-EOF
-chmod +x /etc/profile.d/snowfox-gpu.sh
-
+success "GPU-Treiber eingerichtet"
 
 # ============================================================
 # SCHRITT 3 — Sway & Wayland Desktop
 # ============================================================
-step "3/8 — Sway + Waybar + Wofi + Dunst + Swaylock"
+step "3/9 — Sway + Waybar + Wofi + Dunst + Swaylock"
 
 apt-get install -y \
     sway \
@@ -266,11 +204,11 @@ apt-get install -y \
     papirus-icon-theme \
     wlsunset
 
-apt-get install -y blueman 2>/dev/null || warn "Blueman nicht verfügbar — Bluetooth nur per CLI"
+apt-get install -y blueman 2>/dev/null || warn "Blueman nicht verfügbar"
 
 success "Sway Desktop installiert"
 
-# Sway startet automatisch nach Login in TTY1
+# Sway automatisch von TTY1 starten
 BASH_PROFILE="$TARGET_HOME/.bash_profile"
 if ! grep -q "exec sway" "$BASH_PROFILE" 2>/dev/null; then
     echo '' >> "$BASH_PROFILE"
@@ -278,19 +216,17 @@ if ! grep -q "exec sway" "$BASH_PROFILE" 2>/dev/null; then
     echo '[ "$(tty)" = "/dev/tty1" ] && exec sway' >> "$BASH_PROFILE"
 fi
 
-# Kein Autologin
+# Kein Display Manager
 rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
 rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null || true
-systemctl disable lightdm 2>/dev/null || true
-systemctl disable greetd  2>/dev/null || true
-systemctl disable gdm3    2>/dev/null || true
+systemctl disable lightdm greetd gdm3 2>/dev/null || true
 
 success "Sway Autostart eingerichtet"
 
 # ============================================================
 # SCHRITT 4 — Audio (PipeWire)
 # ============================================================
-step "4/8 — Audio (PipeWire)"
+step "4/9 — Audio (PipeWire)"
 
 apt-get install -y \
     pipewire \
@@ -300,7 +236,7 @@ apt-get install -y \
     pavucontrol \
     pulseaudio-utils
 
-apt-get remove --purge -y pulseaudio pulseaudio-utils 2>/dev/null || true
+apt-get remove --purge -y pulseaudio 2>/dev/null || true
 sudo -u "$TARGET_USER" systemctl --user enable pipewire pipewire-pulse wireplumber 2>/dev/null || true
 
 success "PipeWire installiert"
@@ -308,7 +244,7 @@ success "PipeWire installiert"
 # ============================================================
 # SCHRITT 5 — Terminal & Apps
 # ============================================================
-step "5/8 — Terminal & Standard-Apps"
+step "5/9 — Terminal & Standard-Apps"
 
 apt-get install -y \
     kitty \
@@ -324,17 +260,17 @@ apt-get install -y \
     ffmpeg \
     gnupg
 
-# yt-dlp direkt von GitHub — apt-Version ist immer veraltet
-curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-chmod +x /usr/local/bin/yt-dlp
-success "yt-dlp (neueste Version) installiert"
+# yt-dlp von GitHub — apt-Version ist veraltet
+curl -sL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+    -o /usr/local/bin/yt-dlp && chmod +x /usr/local/bin/yt-dlp
+success "yt-dlp installiert"
 
-success "Terminal (Kitty) & Apps installiert"
+success "Terminal & Apps installiert"
 
 # ============================================================
 # SCHRITT 6 — Browser (Brave)
 # ============================================================
-step "6/8 — Brave Browser"
+step "6/9 — Brave Browser"
 
 curl -fsS https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
     | tee /usr/share/keyrings/brave-browser-archive-keyring.gpg > /dev/null
@@ -351,33 +287,17 @@ mkdir -p "$BRAVE_CONFIG_DIR"
 if [[ ! -f "$BRAVE_CONFIG_DIR/Preferences" ]]; then
 cat > "$BRAVE_CONFIG_DIR/Preferences" << 'EOF'
 {
-  "browser": {
-    "has_seen_welcome_page": true,
-    "show_home_button": false
-  },
-  "hardware_acceleration_mode": {
-    "enabled": true
-  },
-  "background_mode": {
-    "enabled": false
-  },
-  "performance_tuning": {
-    "high_efficiency_mode": {
-      "enabled": true,
-      "mode": 2
-    }
-  },
-  "profile": {
-    "default_content_setting_values": {
-      "notifications": 2
-    }
-  }
+  "browser": { "has_seen_welcome_page": true, "show_home_button": false },
+  "hardware_acceleration_mode": { "enabled": true },
+  "background_mode": { "enabled": false },
+  "performance_tuning": { "high_efficiency_mode": { "enabled": true, "mode": 2 } },
+  "profile": { "default_content_setting_values": { "notifications": 2 } }
 }
 EOF
 chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/BraveSoftware"
 fi
 
-# Brave Wayland-Flags — für natives Tiling unter Sway
+# Brave Wayland-Flags für natives Tiling
 cat > "$TARGET_HOME/.config/brave-flags.conf" << 'EOF'
 --enable-features=UseOzonePlatform
 --ozone-platform=wayland
@@ -387,9 +307,41 @@ chown "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/brave-flags.conf"
 success "Brave Browser installiert"
 
 # ============================================================
-# SCHRITT 7 — zram & Optimierung
+# SCHRITT 7 — Steam
 # ============================================================
-step "7/8 — zram & Optimierung"
+step "7/9 — Steam"
+
+read -rp "$(echo -e ${PURPLE}${BOLD}"[SnowFox] Steam installieren? [j/n]: "${RESET})" INSTALL_STEAM
+if [[ "$INSTALL_STEAM" == "j" || "$INSTALL_STEAM" == "J" ]]; then
+    apt-get install -y \
+        steam \
+        steam-devices \
+        libvulkan1 libvulkan1:i386 \
+        vulkan-tools \
+        libgl1-mesa-dri:i386 \
+        mesa-vulkan-drivers:i386 2>/dev/null || \
+        warn "Steam konnte nicht vollständig installiert werden"
+
+    # Proton/Steam Wayland Fix
+    cat >> "$TARGET_HOME/.config/brave-flags.conf" << 'EOF'
+EOF
+    # Steam ENV
+    mkdir -p "$TARGET_HOME/.steam"
+    cat > /etc/profile.d/snowfox-steam.sh << 'EOF'
+export STEAM_RUNTIME=1
+export SDL_VIDEODRIVER=wayland
+EOF
+    chmod +x /etc/profile.d/snowfox-steam.sh
+    chown "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.steam" 2>/dev/null || true
+    success "Steam installiert — Proton für Windows-Spiele verfügbar"
+else
+    info "Steam übersprungen"
+fi
+
+# ============================================================
+# SCHRITT 8 — zram & Optimierung
+# ============================================================
+step "8/9 — zram & Optimierung"
 
 apt-get install -y zram-tools tlp tlp-rdw
 
@@ -402,7 +354,6 @@ EOF
 systemctl enable zramswap
 systemctl enable tlp
 
-# RAM bevorzugen, spät auf zram ausweichen
 cat > /etc/sysctl.d/99-snowfox.conf << 'EOF'
 vm.swappiness=10
 EOF
@@ -413,7 +364,6 @@ for svc in avahi-daemon cups cups-browsed ModemManager e2scrub_reap bluetooth; d
 done
 systemctl mask NetworkManager-wait-online.service 2>/dev/null || true
 
-# Unnötige User-Dienste maskieren — verhindert auch D-Bus Aktivierung
 sudo -u "$TARGET_USER" systemctl --user mask \
     at-spi-dbus-bus.service \
     gnome-keyring-daemon.service \
@@ -422,7 +372,6 @@ sudo -u "$TARGET_USER" systemctl --user mask \
     xdg-document-portal.service \
     xdg-permission-store.service 2>/dev/null || true
 
-# Ollama nicht automatisch starten — wird on-demand durch snowfox ai gestartet
 systemctl disable ollama 2>/dev/null || true
 
 mkdir -p /etc/NetworkManager/conf.d
@@ -432,7 +381,6 @@ wifi.scan-rand-mac-address=no
 
 [main]
 plugins=ifupdown,keyfile
-# Captive Portals: Verbindung nicht trennen wenn kein vollständiges Internet
 connectivity-check-enabled=false
 
 [ifupdown]
@@ -443,9 +391,9 @@ systemctl enable NetworkManager
 success "zram + Optimierungen fertig"
 
 # ============================================================
-# SCHRITT 8 — Konfiguration, Icons & Darkmode
+# SCHRITT 9 — Konfiguration, Icons & Darkmode
 # ============================================================
-step "8/8 — Konfiguration, Icons & Darkmode"
+step "9/9 — Konfiguration, Icons & Darkmode"
 
 CONFIG_DIR="$TARGET_HOME/.config"
 mkdir -p \
@@ -455,6 +403,7 @@ mkdir -p \
     "$CONFIG_DIR/dunst" \
     "$CONFIG_DIR/swaylock" \
     "$CONFIG_DIR/kitty" \
+    "$CONFIG_DIR/mpv" \
     "$CONFIG_DIR/gtk-3.0" \
     "$CONFIG_DIR/gtk-4.0" \
     "$CONFIG_DIR/xdg-desktop-portal" \
@@ -465,9 +414,9 @@ cp "$SCRIPT_DIR/configs/sway/config"             "$CONFIG_DIR/sway/config"
 cp "$SCRIPT_DIR/configs/sway/wallpaper.sh"       "$CONFIG_DIR/sway/wallpaper.sh"
 cp "$SCRIPT_DIR/configs/sway/powermenu.sh"       "$CONFIG_DIR/sway/powermenu.sh"
 cp "$SCRIPT_DIR/configs/sway/snowfox-network.sh" "$CONFIG_DIR/sway/snowfox-network.sh"
-chmod +x "$CONFIG_DIR/sway/wallpaper.sh"
-chmod +x "$CONFIG_DIR/sway/powermenu.sh"
-chmod +x "$CONFIG_DIR/sway/snowfox-network.sh"
+chmod +x "$CONFIG_DIR/sway/wallpaper.sh" \
+         "$CONFIG_DIR/sway/powermenu.sh" \
+         "$CONFIG_DIR/sway/snowfox-network.sh"
 
 # Waybar
 cp "$SCRIPT_DIR/configs/waybar/config"    "$CONFIG_DIR/waybar/config"
@@ -512,8 +461,7 @@ hide_window_decorations yes
 confirm_os_window_close 0
 EOF
 
-# mpv — Wayland Output erzwingen
-mkdir -p "$CONFIG_DIR/mpv"
+# mpv Wayland
 cat > "$CONFIG_DIR/mpv/mpv.conf" << 'EOF'
 vo=gpu
 gpu-context=wayland
@@ -536,7 +484,7 @@ cat > "$CONFIG_DIR/gtk-4.0/settings.ini" << 'EOF'
 gtk-application-prefer-dark-theme=1
 EOF
 
-# xdg-desktop-portal-wlr (kein gtk — verhindert Timeouts)
+# xdg-desktop-portal
 apt-get install -y xdg-desktop-portal xdg-desktop-portal-wlr
 apt-get remove --purge -y xdg-desktop-portal-gtk 2>/dev/null || true
 
@@ -548,9 +496,7 @@ org.freedesktop.impl.portal.ScreenCast=wlr
 org.freedesktop.impl.portal.FileChooser=wlr
 EOF
 
-success "xdg-desktop-portal-wlr installiert"
-
-# Wayland/Qt Umgebungsvariablen (via profile.d — überschreibt keine bestehenden Einträge)
+# Wayland/Qt Umgebungsvariablen
 cat > /etc/profile.d/snowfox-env.sh << 'EOF'
 export MOZ_ENABLE_WAYLAND=1
 export QT_QPA_PLATFORM=wayland;xcb
@@ -562,27 +508,22 @@ export CLUTTER_BACKEND=wayland
 EOF
 chmod +x /etc/profile.d/snowfox-env.sh
 
-# SnowFox Logo als System-Icon installieren
+# SnowFox Logo
 ASSET="$SCRIPT_DIR/assets/fuchs.png"
 if [[ -f "$ASSET" ]]; then
-    info "SnowFox Logo wird installiert..."
     for SIZE in 16 24 32 48 64 128 256; do
         ICON_DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
         mkdir -p "$ICON_DIR"
         convert "$ASSET" -resize "${SIZE}x${SIZE}" "$ICON_DIR/snowfox.png" 2>/dev/null || true
     done
     gtk-update-icon-cache /usr/share/icons/hicolor/ 2>/dev/null || true
-    success "SnowFox Logo als System-Icon installiert"
-else
-    warn "assets/fuchs.png nicht gefunden — Icon wird übersprungen"
+    success "SnowFox Logo installiert"
 fi
 
-# Wallpaper kopieren
+# Wallpaper
 if [ -d "$SCRIPT_DIR/wallpapers" ] && [ "$(ls -A "$SCRIPT_DIR/wallpapers" 2>/dev/null)" ]; then
     cp "$SCRIPT_DIR/wallpapers"/* "$TARGET_HOME/Pictures/wallpapers/"
     success "Wallpapers kopiert"
-else
-    warn "Kein Wallpaper gefunden — dunkle Hintergrundfarbe aktiv"
 fi
 
 # Autostart-Bloat deaktivieren
@@ -594,7 +535,7 @@ for desktop in blueman-applet gnome-keyring-secrets gnome-keyring-pkcs11 gnome-k
     fi
 done
 
-# gnome-keyring aus PAM entfernen — startet sonst beim Login
+# gnome-keyring aus PAM
 sed -i 's/^password.*pam_gnome_keyring.so/# &/' /etc/pam.d/common-password 2>/dev/null || true
 
 # snowfox CLI
@@ -605,8 +546,6 @@ success "snowfox CLI installiert"
 # snowfox Greeting
 cp "$SCRIPT_DIR/snowfox-greeting.sh" /usr/local/bin/snowfox-greeting
 chmod +x /usr/local/bin/snowfox-greeting
-
-# Greeting in bashrc einbinden
 BASHRC="$TARGET_HOME/.bashrc"
 if ! grep -q "snowfox-greeting" "$BASHRC" 2>/dev/null; then
     echo '' >> "$BASHRC"
@@ -615,23 +554,17 @@ if ! grep -q "snowfox-greeting" "$BASHRC" 2>/dev/null; then
 fi
 success "Terminal Greeting eingerichtet"
 
-# Ollama (Offline-KI)
+# Ollama
 echo ""
 read -rp "$(echo -e ${PURPLE}${BOLD}"[SnowFox] Ollama + llama3.2 installieren? (Offline-KI, ca. 2GB) [j/n]: "${RESET})" INSTALL_OLLAMA
 if [[ "$INSTALL_OLLAMA" == "j" || "$INSTALL_OLLAMA" == "J" ]]; then
-    info "Ollama wird installiert..."
-    curl -fsSL https://ollama.com/install.sh | sh 2>/dev/null && \
-        success "Ollama installiert" || \
-        warn "Ollama konnte nicht installiert werden — manuell: curl -fsSL https://ollama.com/install.sh | sh"
-
+    curl -fsSL https://ollama.com/install.sh | sh 2>/dev/null && success "Ollama installiert" || warn "Ollama fehlgeschlagen"
     if command -v ollama &>/dev/null; then
-        info "llama3.2 wird heruntergeladen (ca. 2GB)..."
         sudo -u "$TARGET_USER" ollama pull llama3.2 2>/dev/null && \
-            success "llama3.2 bereit — starte mit: snowfox ai" || \
-            warn "llama3.2 konnte nicht geladen werden — manuell: ollama pull llama3.2"
+            success "llama3.2 bereit" || warn "llama3.2 Download fehlgeschlagen"
     fi
 else
-    info "Ollama übersprungen — später installierbar mit: curl -fsSL https://ollama.com/install.sh | sh"
+    info "Ollama übersprungen"
 fi
 
 # Berechtigungen
@@ -654,17 +587,17 @@ echo -e "${GREEN}${BOLD}  SnowFoxOS v2.0 erfolgreich installiert!${RESET}"
 echo ""
 echo -e "${GRAY}  Benutzer:   ${BOLD}$TARGET_USER${RESET}"
 echo -e "${GRAY}  Desktop:    ${BOLD}Sway + Waybar${RESET}"
-echo -e "${GRAY}  Browser:    ${BOLD}Brave${RESET}"
+echo -e "${GRAY}  Browser:    ${BOLD}Brave (Wayland-nativ)${RESET}"
 echo -e "${GRAY}  Audio:      ${BOLD}PipeWire${RESET}"
 echo -e "${GRAY}  Darkmode:   ${BOLD}GTK3 + GTK4${RESET}"
 echo -e "${GRAY}  Portal:     ${BOLD}xdg-desktop-portal-wlr${RESET}"
-echo -e "${GRAY}  KI:         ${BOLD}Ollama + llama3.2 (offline)${RESET}"
 echo -e "${GRAY}  CLI:        ${BOLD}snowfox${RESET}"
 echo -e "${GRAY}  GPU:        ${BOLD}$(
-    $IS_HYBRID && echo "Hybrid (AMD + Nvidia) → Nvidia-Modus aktiv" || \
-    { $HAS_NVIDIA && echo "Nvidia"; } || \
-    { $HAS_AMD && echo "AMD"; } || \
-    echo "Intel/andere"
+    $IS_HYBRID && echo "Hybrid → Nvidia-Modus (envycontrol)" || \
+    ( $HAS_NVIDIA && echo "Nvidia" ) || \
+    ( $HAS_AMD && echo "AMD" ) || \
+    ( $HAS_INTEL && echo "Intel" ) || \
+    echo "Standard Mesa"
 )${RESET}"
 echo -e "${GRAY}  zram:       ${BOLD}aktiv (lz4, 50%)${RESET}"
 echo -e "${GRAY}  tlp:        ${BOLD}aktiv (Akku-Optimierung)${RESET}"
@@ -676,12 +609,12 @@ echo -e "  ${GRAY}Super+Return   ${RESET}Terminal"
 echo -e "  ${GRAY}Super+Space    ${RESET}App-Launcher (Wofi)"
 echo -e "  ${GRAY}Super+B        ${RESET}Brave Browser"
 echo -e "  ${GRAY}Super+E        ${RESET}Dateimanager"
+echo -e "  ${GRAY}Super+N        ${RESET}Netzwerk-Manager"
 echo -e "  ${GRAY}Super+L        ${RESET}Bildschirm sperren"
 echo -e "  ${GRAY}Super+Shift+E  ${RESET}Power-Menü"
 echo ""
 if $IS_HYBRID; then
     echo -e "${ORANGE}${BOLD}  ⚠ Hybrid-GPU: Alle Monitore an die Nvidia-Karte anschließen!${RESET}"
-    echo -e "${GRAY}     Motherboard-Ausgänge (iGPU) sind deaktiviert.${RESET}"
     echo ""
 fi
 echo -e "${ORANGE}${BOLD}  → Neu starten: sudo reboot${RESET}"
