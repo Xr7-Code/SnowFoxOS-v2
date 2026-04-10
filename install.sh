@@ -90,22 +90,30 @@ IS_HYBRID=false
 echo "$GPU_INFO" | grep -qi "nvidia" && HAS_NVIDIA=true && info "Nvidia GPU gefunden"
 echo "$GPU_INFO" | grep -qi "amd\|radeon\|advanced micro" && HAS_AMD=true && info "AMD GPU gefunden"
 echo "$GPU_INFO" | grep -qi "intel" && HAS_INTEL=true && info "Intel GPU gefunden"
+
 [[ "$HAS_NVIDIA" = true && ( "$HAS_AMD" = true || "$HAS_INTEL" = true ) ]] && IS_HYBRID=true && warn "Hybrid-GPU erkannt"
 
-# AMD/Intel Mesa Treiber (immer installieren wenn vorhanden — auch auf Hybrid)
+# ============================================================
+# Mesa (immer für Intel/AMD)
+# ============================================================
 if $HAS_AMD || $HAS_INTEL; then
     apt-get install -y \
         libgl1-mesa-dri libgl1-mesa-dri:i386 \
         mesa-vulkan-drivers mesa-vulkan-drivers:i386 \
         mesa-va-drivers mesa-vdpau-drivers 2>/dev/null || true
+
     $HAS_AMD && apt-get install -y firmware-amd-graphics 2>/dev/null || true
     $HAS_INTEL && apt-get install -y intel-media-va-driver 2>/dev/null || true
+
     success "Mesa/AMD/Intel Treiber installiert"
 fi
 
-# Nvidia Treiber
+# ============================================================
+# NVIDIA (Wayland stabilisiert)
+# ============================================================
 if $HAS_NVIDIA; then
     apt-get install -y linux-headers-$(uname -r) 2>/dev/null || true
+
     apt-get install -y \
         nvidia-driver \
         nvidia-kernel-dkms \
@@ -122,56 +130,83 @@ options nouveau modeset=0
 install nouveau /bin/false
 EOF
 
-    # DRM Modesetting für Wayland
+    # Kernel parameter
     if [[ -f /etc/default/grub ]]; then
         if ! grep -q "nvidia-drm.modeset=1" /etc/default/grub; then
             sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&nvidia-drm.modeset=1 /' /etc/default/grub
             update-grub 2>/dev/null || true
         fi
     fi
+
     update-initramfs -u -k all 2>/dev/null || true
 
-    # Nvidia Wayland ENV — nur auf reinen Nvidia Systemen
-    if ! $IS_HYBRID; then
-        cat > /etc/profile.d/snowfox-nvidia.sh << 'EOF'
+    # ============================================================
+    # NVIDIA ENV FIX (WICHTIG: stabil für wlroots)
+    # ============================================================
+    cat > /etc/profile.d/snowfox-nvidia.sh << 'EOF'
 export WLR_NO_HARDWARE_CURSORS=1
+export WLR_RENDERER=vulkan
 export GBM_BACKEND=nvidia-drm
 export __GLX_VENDOR_LIBRARY_NAME=nvidia
+export __GL_GSYNC_ALLOWED=0
+export __GL_VRR_ALLOWED=0
+export MOZ_ENABLE_WAYLAND=1
 EOF
-        chmod +x /etc/profile.d/snowfox-nvidia.sh
-    fi
-    success "Nvidia Treiber installiert"
+    chmod +x /etc/profile.d/snowfox-nvidia.sh
+
+    success "Nvidia Treiber + Wayland Fixes installiert"
 fi
 
-# Hybrid GPU — envycontrol, Nvidia-Modus
+# ============================================================
+# HYBRID SYSTEM (STABILSTE VARIANTE)
+# ============================================================
 if $IS_HYBRID; then
     apt-get install -y python3 python3-pip
+
     pip3 install envycontrol --break-system-packages 2>/dev/null || \
-        pip3 install envycontrol 2>/dev/null || \
-        warn "envycontrol nicht installierbar"
+    pip3 install envycontrol 2>/dev/null || \
+    warn "envycontrol nicht installierbar"
 
     if command -v envycontrol &>/dev/null; then
-        envycontrol -s nvidia 2>/dev/null && \
-            success "envycontrol: Nvidia-Modus aktiviert" || \
-            warn "envycontrol konnte Nvidia-Modus nicht setzen"
-        # Cursor Fix für Hybrid
-        cat > /etc/profile.d/snowfox-hybrid.sh << 'EOF'
-export WLR_NO_HARDWARE_CURSORS=1
-EOF
-        chmod +x /etc/profile.d/snowfox-hybrid.sh
-        echo ""
-        warn "Hybrid-GPU: Alle Monitore an die Nvidia-Karte anschließen!"
-        warn "Motherboard-Ausgänge (iGPU) sind deaktiviert."
-        echo ""
+        # WICHTIG: nicht nvidia erzwingen → stabiler Wayland Desktop
+        envycontrol -s integrated 2>/dev/null && \
+            success "Hybrid-Modus: Integrated GPU aktiv (stabil)" || \
+            warn "envycontrol konnte nicht gesetzt werden"
     fi
+
+    # Hybrid Wayland Fix
+    cat > /etc/profile.d/snowfox-hybrid.sh << 'EOF'
+export WLR_NO_HARDWARE_CURSORS=1
+export WLR_RENDERER=vulkan
+export MOZ_ENABLE_WAYLAND=1
+EOF
+    chmod +x /etc/profile.d/snowfox-hybrid.sh
 fi
 
-# Kein Nvidia vorhanden — Intel/andere
+# ============================================================
+# Fallback (kein AMD/NVIDIA)
+# ============================================================
 if ! $HAS_NVIDIA && ! $HAS_AMD; then
     apt-get install -y \
         libgl1-mesa-dri libgl1-mesa-dri:i386 \
         mesa-vulkan-drivers mesa-vulkan-drivers:i386 2>/dev/null || true
 fi
+
+# ============================================================
+# SnowFox Wayland Environment (GLOBAL)
+# ============================================================
+cat > /etc/profile.d/snowfox-env.sh << 'EOF'
+export MOZ_ENABLE_WAYLAND=1
+export QT_QPA_PLATFORM="wayland;xcb"
+export QT_QPA_PLATFORMTHEME=gtk3
+export GDK_BACKEND=wayland,x11
+export XDG_CURRENT_DESKTOP=sway
+export XDG_SESSION_TYPE=wayland
+export CLUTTER_BACKEND=wayland
+export WLR_RENDERER_ALLOW_SOFTWARE=1
+EOF
+
+chmod +x /etc/profile.d/snowfox-env.sh
 
 success "GPU-Treiber eingerichtet"
 
@@ -208,18 +243,37 @@ apt-get install -y blueman 2>/dev/null || warn "Blueman nicht verfügbar"
 
 success "Sway Desktop installiert"
 
-# Sway automatisch von TTY1 starten
+# ============================================================
+# WICHTIG: NVIDIA / wlroots Stabilität
+# ============================================================
+cat >> /etc/profile.d/snowfox-env.sh << 'EOF'
+export WLR_RENDERER_ALLOW_SOFTWARE=1
+export SDL_VIDEODRIVER=wayland
+export QT_QPA_PLATFORM=wayland;xcb
+EOF
+
+# ============================================================
+# Sway Autostart (ROBUST)
+# ============================================================
 BASH_PROFILE="$TARGET_HOME/.bash_profile"
+
 if ! grep -q "exec sway" "$BASH_PROFILE" 2>/dev/null; then
-    echo '' >> "$BASH_PROFILE"
-    echo '# SnowFoxOS — Sway automatisch starten' >> "$BASH_PROFILE"
-    echo '[ "$(tty)" = "/dev/tty1" ] && exec sway' >> "$BASH_PROFILE"
+    cat >> "$BASH_PROFILE" << 'EOF'
+
+# SnowFoxOS — Sway autostart
+if [ "$(tty)" = "/dev/tty1" ]; then
+    exec sway
+fi
+EOF
 fi
 
-# Kein Display Manager
-rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
-rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null || true
-systemctl disable lightdm greetd gdm3 2>/dev/null || true
+# ============================================================
+# Kein Display Manager (sauberer fix)
+# ============================================================
+systemctl disable lightdm gdm3 sddm greetd 2>/dev/null || true
+
+# optional: sicherstellen dass getty nicht kaputt bleibt
+systemctl enable getty@tty1.service 2>/dev/null || true
 
 success "Sway Autostart eingerichtet"
 
