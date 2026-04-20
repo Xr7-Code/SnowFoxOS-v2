@@ -10,6 +10,10 @@
 
 **A lightweight, performance-focused Wayland desktop built on Debian 12**
 
+<h1 align="center">Discontinued</h1>
+
+<p align="center">Active Project: SnowFoxOS-v2-i3</p>
+
 ![Version](https://img.shields.io/badge/version-v2.0-9B59B6?style=flat-square)
 ![Debian](https://img.shields.io/badge/base-Debian%2012-A81D33?style=flat-square&logo=debian&logoColor=white)
 ![Sway](https://img.shields.io/badge/desktop-Sway%2FWayland-3a86ff?style=flat-square)
